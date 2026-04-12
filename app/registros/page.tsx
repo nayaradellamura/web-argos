@@ -1,17 +1,17 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { AppLayout } from "@/components/layout/app-layout"
-import { PageHeader } from "@/components/layout/page-header"
-import { RegistrosHeader } from "@/components/registros/registros-header"
-import { ClientesTable } from "@/components/registros/clientes-table"
-import { VeiculosTable } from "@/components/registros/veiculos-table"
-import { UsuariosTable } from "@/components/registros/usuarios-table"
-import { TabsContent, Tabs } from "@/components/ui/tabs"
+import { useState } from "react";
+import { AppLayout } from "@/components/layout/app-layout";
+import { PageHeader } from "@/components/layout/page-header";
+import { RegistrosHeader } from "@/components/registros/registros-header";
+import { ClientesTable } from "@/components/registros/clientes-table";
+import { VeiculosTable } from "@/components/registros/veiculos-table";
+import { UsuariosTable } from "@/components/registros/usuarios-table";
+import { TabsContent, Tabs } from "@/components/ui/tabs";
 
 export default function RegistrosPage() {
-  const [activeTab, setActiveTab] = useState("clientes")
-  const [searchQuery, setSearchQuery] = useState("")
+  const [activeTab, setActiveTab] = useState("clientes");
+  const [searchQuery, setSearchQuery] = useState("");
 
   return (
     <AppLayout>
@@ -45,5 +45,5 @@ export default function RegistrosPage() {
         </Tabs>
       </div>
     </AppLayout>
-  )
+  );
 }

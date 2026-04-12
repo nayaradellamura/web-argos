@@ -1,68 +1,68 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { AppLayout } from "@/components/layout/app-layout"
-import { PageHeader } from "@/components/layout/page-header"
-import { PerfilSettings } from "@/components/configuracoes/perfil-settings"
-import { NotificacoesSettings } from "@/components/configuracoes/notificacoes-settings"
-import { IASettings } from "@/components/configuracoes/ia-settings"
-import { AparenciaSettings } from "@/components/configuracoes/aparencia-settings"
-import { cn } from "@/lib/utils"
-import { User, Bell, Brain, Palette } from "lucide-react"
+import { useState } from "react";
+import { AppLayout } from "@/components/layout/app-layout";
+import { PageHeader } from "@/components/layout/page-header";
+import { PerfilSettings } from "@/components/configuracoes/perfil-settings";
+import { NotificacoesSettings } from "@/components/configuracoes/notificacoes-settings";
+import { IASettings } from "@/components/configuracoes/ia-settings";
+import { AparenciaSettings } from "@/components/configuracoes/aparencia-settings";
+import { cn } from "@/lib/utils";
+import { User, Bell, Brain, Palette } from "lucide-react";
 
-type SettingsTab = "perfil" | "notificacoes" | "ia" | "aparencia"
+type SettingsTab = "perfil" | "notificacoes" | "ia" | "aparencia";
 
 interface MenuItem {
-  id: SettingsTab
-  nome: string
-  descricao: string
-  icon: React.ReactNode
+  id: SettingsTab;
+  nome: string;
+  descricao: string;
+  icon: React.ReactNode;
 }
 
 export default function ConfiguracoesPage() {
-  const [activeTab, setActiveTab] = useState<SettingsTab>("perfil")
+  const [activeTab, setActiveTab] = useState<SettingsTab>("perfil");
 
   const menuItems: MenuItem[] = [
     {
       id: "perfil",
       nome: "Meu Perfil",
       descricao: "Informações pessoais",
-      icon: <User className="h-5 w-5" />
+      icon: <User className="h-5 w-5" />,
     },
     {
       id: "notificacoes",
       nome: "Notificações e Alertas",
       descricao: "Preferências de avisos",
-      icon: <Bell className="h-5 w-5" />
+      icon: <Bell className="h-5 w-5" />,
     },
     {
       id: "ia",
       nome: "Motor de IA",
       descricao: "Triagem inteligente",
-      icon: <Brain className="h-5 w-5" />
+      icon: <Brain className="h-5 w-5" />,
     },
     {
       id: "aparencia",
       nome: "Aparência",
       descricao: "Tema da interface",
-      icon: <Palette className="h-5 w-5" />
-    }
-  ]
+      icon: <Palette className="h-5 w-5" />,
+    },
+  ];
 
   const renderContent = () => {
     switch (activeTab) {
       case "perfil":
-        return <PerfilSettings />
+        return <PerfilSettings />;
       case "notificacoes":
-        return <NotificacoesSettings />
+        return <NotificacoesSettings />;
       case "ia":
-        return <IASettings />
+        return <IASettings />;
       case "aparencia":
-        return <AparenciaSettings />
+        return <AparenciaSettings />;
       default:
-        return <PerfilSettings />
+        return <PerfilSettings />;
     }
-  }
+  };
 
   return (
     <AppLayout>
@@ -85,25 +85,29 @@ export default function ConfiguracoesPage() {
                     "flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors",
                     activeTab === item.id
                       ? "bg-primary text-primary-foreground"
-                      : "bg-card hover:bg-muted text-foreground"
+                      : "bg-card hover:bg-muted text-foreground",
                   )}
                 >
-                  <div className={cn(
-                    "flex h-9 w-9 items-center justify-center rounded-lg",
-                    activeTab === item.id
-                      ? "bg-primary-foreground/20"
-                      : "bg-muted"
-                  )}>
+                  <div
+                    className={cn(
+                      "flex h-9 w-9 items-center justify-center rounded-lg",
+                      activeTab === item.id
+                        ? "bg-primary-foreground/20"
+                        : "bg-muted",
+                    )}
+                  >
                     {item.icon}
                   </div>
                   <div>
                     <p className="text-sm font-medium">{item.nome}</p>
-                    <p className={cn(
-                      "text-xs",
-                      activeTab === item.id
-                        ? "text-primary-foreground/80"
-                        : "text-muted-foreground"
-                    )}>
+                    <p
+                      className={cn(
+                        "text-xs",
+                        activeTab === item.id
+                          ? "text-primary-foreground/80"
+                          : "text-muted-foreground",
+                      )}
+                    >
                       {item.descricao}
                     </p>
                   </div>
@@ -113,11 +117,9 @@ export default function ConfiguracoesPage() {
           </nav>
 
           {/* Área de Conteúdo */}
-          <div className="flex-1 min-w-0">
-            {renderContent()}
-          </div>
+          <div className="flex-1 min-w-0">{renderContent()}</div>
         </div>
       </div>
     </AppLayout>
-  )
+  );
 }
