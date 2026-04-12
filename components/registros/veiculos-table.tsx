@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   MoreHorizontal,
   Eye,
@@ -26,9 +26,36 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Veiculo {
   id: string;
@@ -141,24 +168,74 @@ interface VeiculosTableProps {
 
 export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
+  const [veiculos, setVeiculos] = useState(veiculosData);
+  const [selectedVeiculo, setSelectedVeiculo] = useState<Veiculo | null>(null);
+  const [dialogMode, setDialogMode] = useState<"view" | "edit" | null>(null);
+  const [veiculoToDelete, setVeiculoToDelete] = useState<Veiculo | null>(null);
+  const [editForm, setEditForm] = useState<Veiculo | null>(null);
   const itemsPerPage = 5;
 
-  const filteredData = veiculosData.filter(
+  const filteredData = useMemo(() => veiculos.filter(
     (veiculo) =>
       veiculo.placa.toLowerCase().includes(searchQuery.toLowerCase()) ||
       veiculo.modelo.toLowerCase().includes(searchQuery.toLowerCase()) ||
       veiculo.proprietario.toLowerCase().includes(searchQuery.toLowerCase()) ||
       veiculo.id.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  ), [veiculos, searchQuery]);
 
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * itemsPerPage;
   const paginatedData = filteredData.slice(
     startIndex,
     startIndex + itemsPerPage,
   );
 
+  const openViewDialog = (veiculo: Veiculo) => {
+    setSelectedVeiculo(veiculo);
+    setEditForm(null);
+    setDialogMode("view");
+  };
+
+  const openEditDialog = (veiculo: Veiculo) => {
+    setSelectedVeiculo(veiculo);
+    setEditForm(veiculo);
+    setDialogMode("edit");
+  };
+
+  const closeDialog = () => {
+    setSelectedVeiculo(null);
+    setEditForm(null);
+    setDialogMode(null);
+  };
+
+  const handleSaveEdit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!editForm) return;
+
+    setVeiculos((current) =>
+      current.map((veiculo) =>
+        veiculo.id === editForm.id ? editForm : veiculo,
+      ),
+    );
+
+    closeDialog();
+  };
+
+  const handleDeleteVeiculo = () => {
+    if (!veiculoToDelete) return;
+
+    setVeiculos((current) =>
+      current.filter((veiculo) => veiculo.id !== veiculoToDelete.id),
+    );
+    setVeiculoToDelete(null);
+  };
+
+  const dialogVeiculo = dialogMode === "edit" ? editForm : selectedVeiculo;
+
   return (
+    <>
     <Card className="border-0 shadow-sm">
       <div className="overflow-x-auto">
         <Table className="min-w-[900px]">
@@ -217,18 +294,21 @@ export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openViewDialog(veiculo)}>
                           <Eye className="mr-2 h-4 w-4" />
                           Visualizar
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openEditDialog(veiculo)}>
                           <Pencil className="mr-2 h-4 w-4" />
                           Editar
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem variant="destructive">
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onClick={() => setVeiculoToDelete(veiculo)}
+                        >
                           <Trash2 className="mr-2 h-4 w-4" />
-                          Excluir
+                          Apagar
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -251,7 +331,7 @@ export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
               size="icon"
               className="h-8 w-8"
               onClick={() => setCurrentPage(1)}
-              disabled={currentPage === 1}
+              disabled={safeCurrentPage === 1}
             >
               <ChevronsLeft className="h-4 w-4" />
               <span className="sr-only">Primeira página</span>
@@ -261,20 +341,20 @@ export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
               size="icon"
               className="h-8 w-8"
               onClick={() => setCurrentPage(currentPage - 1)}
-              disabled={currentPage === 1}
+              disabled={safeCurrentPage === 1}
             >
               <ChevronLeft className="h-4 w-4" />
               <span className="sr-only">Página anterior</span>
             </Button>
             <span className="px-3 text-sm text-muted-foreground">
-              Página {currentPage} de {totalPages}
+              Página {safeCurrentPage} de {totalPages}
             </span>
             <Button
               variant="outline"
               size="icon"
               className="h-8 w-8"
               onClick={() => setCurrentPage(currentPage + 1)}
-              disabled={currentPage === totalPages}
+              disabled={safeCurrentPage === totalPages}
             >
               <ChevronRight className="h-4 w-4" />
               <span className="sr-only">Próxima página</span>
@@ -284,7 +364,7 @@ export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
               size="icon"
               className="h-8 w-8"
               onClick={() => setCurrentPage(totalPages)}
-              disabled={currentPage === totalPages}
+              disabled={safeCurrentPage === totalPages}
             >
               <ChevronsRight className="h-4 w-4" />
               <span className="sr-only">Última página</span>
@@ -293,5 +373,166 @@ export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
         </div>
       </div>
     </Card>
+
+    <Dialog open={dialogMode !== null} onOpenChange={(open) => !open && closeDialog()}>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>
+            {dialogMode === "edit" ? "Editar Veículo" : "Visualizar Veículo"}
+          </DialogTitle>
+          <DialogDescription>
+            {dialogMode === "edit"
+              ? "Atualize os dados do veículo selecionado."
+              : "Confira as informações completas do veículo selecionado."}
+          </DialogDescription>
+        </DialogHeader>
+
+        {dialogVeiculo && (
+          <form onSubmit={handleSaveEdit} className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="veiculo-id">ID</Label>
+                <Input id="veiculo-id" value={dialogVeiculo.id} disabled />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="veiculo-placa">Placa</Label>
+                <Input
+                  id="veiculo-placa"
+                  value={dialogVeiculo.placa}
+                  disabled={dialogMode === "view"}
+                  onChange={(event) =>
+                    setEditForm((prev) =>
+                      prev ? { ...prev, placa: event.target.value } : prev,
+                    )
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="veiculo-modelo">Modelo</Label>
+              <Input
+                id="veiculo-modelo"
+                value={dialogVeiculo.modelo}
+                disabled={dialogMode === "view"}
+                onChange={(event) =>
+                  setEditForm((prev) =>
+                    prev ? { ...prev, modelo: event.target.value } : prev,
+                  )
+                }
+              />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="veiculo-ano">Ano de fabricação</Label>
+                <Input
+                  id="veiculo-ano"
+                  type="number"
+                  value={dialogVeiculo.anoFabricacao}
+                  disabled={dialogMode === "view"}
+                  onChange={(event) =>
+                    setEditForm((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            anoFabricacao: Number.parseInt(event.target.value || "0", 10),
+                          }
+                        : prev,
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="veiculo-proprietario">Proprietário</Label>
+                <Input
+                  id="veiculo-proprietario"
+                  value={dialogVeiculo.proprietario}
+                  disabled={dialogMode === "view"}
+                  onChange={(event) =>
+                    setEditForm((prev) =>
+                      prev ? { ...prev, proprietario: event.target.value } : prev,
+                    )
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Cobertura</Label>
+                <Select
+                  value={dialogVeiculo.tipoCobertura}
+                  disabled={dialogMode === "view"}
+                  onValueChange={(value: Veiculo["tipoCobertura"]) =>
+                    setEditForm((prev) =>
+                      prev ? { ...prev, tipoCobertura: value } : prev,
+                    )
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="basica">Básica</SelectItem>
+                    <SelectItem value="completa">Completa</SelectItem>
+                    <SelectItem value="premium">Premium</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select
+                  value={dialogVeiculo.status}
+                  disabled={dialogMode === "view"}
+                  onValueChange={(value: Veiculo["status"]) =>
+                    setEditForm((prev) =>
+                      prev ? { ...prev, status: value } : prev,
+                    )
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ativo">Ativo</SelectItem>
+                    <SelectItem value="sinistrado">Sinistrado</SelectItem>
+                    <SelectItem value="inativo">Inativo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={closeDialog}>
+                Fechar
+              </Button>
+              {dialogMode === "edit" && <Button type="submit">Salvar Alterações</Button>}
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+
+    <AlertDialog open={veiculoToDelete !== null} onOpenChange={(open) => !open && setVeiculoToDelete(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Apagar veículo?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {veiculoToDelete
+              ? `Esta ação removerá o veículo ${veiculoToDelete.placa} da lista atual.`
+              : "Esta ação removerá o veículo da lista atual."}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction className="bg-destructive text-white hover:bg-destructive/90" onClick={handleDeleteVeiculo}>
+            Apagar
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

@@ -24,7 +24,7 @@ export function AlertasHeader({ activeTab, onTabChange, counts }: AlertasHeaderP
           className="gap-2 data-[state=active]:bg-destructive/10 data-[state=active]:text-destructive"
         >
           <AlertTriangle className="h-4 w-4" />
-          <span>Críticos (IA)</span>
+          <span>Críticos</span>
           <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-xs">
             {counts.critico}
           </Badge>

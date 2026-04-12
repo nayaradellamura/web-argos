@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -296,6 +296,7 @@ export function KanbanBoard() {
   const [stages, setStages] = useState<KanbanStage[]>(initialStages);
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
   const [newCardForm, setNewCardForm] = useState({
     vehicle: "",
     plate: "",
@@ -452,10 +453,21 @@ export function KanbanBoard() {
 
   return (
     <div className="w-full">
-      <div className="mb-4 flex justify-end">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="relative w-full sm:max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Buscar por placa ou ID do sinistro..."
+            value={searchValue}
+            onChange={(event) => setSearchValue(event.target.value)}
+            className="h-10 border-input bg-card pl-10"
+          />
+        </div>
+
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="h-10 w-full px-5 sm:w-auto">
               <Plus className="mr-2 h-4 w-4" />
               Novo Sinistro
             </Button>
@@ -588,7 +600,7 @@ export function KanbanBoard() {
         </Dialog>
       </div>
 
-      <div className="grid w-full grid-cols-6 gap-5 pb-4">
+      <div className="grid w-full grid-cols-1 gap-3 pb-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
         {stages.map((stage) => (
           <KanbanColumn
             key={stage.id}

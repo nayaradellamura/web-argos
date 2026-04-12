@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Menu, Bell, Moon, Sun } from "lucide-react";
+import { Menu, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -51,17 +51,6 @@ export function Header({ onMenuClick }: HeaderProps) {
 
       {/* Right side actions */}
       <div className="ml-auto flex items-center gap-2">
-        {/* Notifications */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative text-foreground hover:bg-muted"
-        >
-          <Bell className="h-5 w-5" />
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary" />
-          <span className="sr-only">Notificacoes</span>
-        </Button>
-
         {/* Theme toggle */}
         <Button
           variant="ghost"

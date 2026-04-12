@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import {
   MoreHorizontal,
   Eye,
@@ -29,10 +29,37 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface Usuario {
   id: string
@@ -162,22 +189,72 @@ interface UsuariosTableProps {
 
 export function UsuariosTable({ searchQuery }: UsuariosTableProps) {
   const [currentPage, setCurrentPage] = useState(1)
+  const [usuarios, setUsuarios] = useState(usuariosData)
+  const [selectedUsuario, setSelectedUsuario] = useState<Usuario | null>(null)
+  const [dialogMode, setDialogMode] = useState<"view" | "edit" | null>(null)
+  const [usuarioToDelete, setUsuarioToDelete] = useState<Usuario | null>(null)
+  const [editForm, setEditForm] = useState<Usuario | null>(null)
   const itemsPerPage = 5
 
-  const filteredData = usuariosData.filter(
+  const filteredData = useMemo(() => usuarios.filter(
     (usuario) =>
       usuario.nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
       usuario.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       usuario.cargo.toLowerCase().includes(searchQuery.toLowerCase()) ||
       usuario.departamento.toLowerCase().includes(searchQuery.toLowerCase()) ||
       usuario.id.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  ), [usuarios, searchQuery])
 
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage))
+  const safeCurrentPage = Math.min(currentPage, totalPages)
+  const startIndex = (safeCurrentPage - 1) * itemsPerPage
   const paginatedData = filteredData.slice(startIndex, startIndex + itemsPerPage)
 
+  const openViewDialog = (usuario: Usuario) => {
+    setSelectedUsuario(usuario)
+    setEditForm(null)
+    setDialogMode("view")
+  }
+
+  const openEditDialog = (usuario: Usuario) => {
+    setSelectedUsuario(usuario)
+    setEditForm(usuario)
+    setDialogMode("edit")
+  }
+
+  const closeDialog = () => {
+    setSelectedUsuario(null)
+    setEditForm(null)
+    setDialogMode(null)
+  }
+
+  const handleSaveEdit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!editForm) return
+
+    setUsuarios((current) =>
+      current.map((usuario) =>
+        usuario.id === editForm.id ? editForm : usuario,
+      ),
+    )
+
+    closeDialog()
+  }
+
+  const handleDeleteUsuario = () => {
+    if (!usuarioToDelete) return
+
+    setUsuarios((current) =>
+      current.filter((usuario) => usuario.id !== usuarioToDelete.id),
+    )
+    setUsuarioToDelete(null)
+  }
+
+  const dialogUsuario = dialogMode === "edit" ? editForm : selectedUsuario
+
   return (
+    <>
     <Card className="overflow-hidden border-0 shadow-sm">
       <Table>
         <TableHeader>
@@ -239,18 +316,21 @@ export function UsuariosTable({ searchQuery }: UsuariosTableProps) {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => openViewDialog(usuario)}>
                         <Eye className="mr-2 h-4 w-4" />
                         Visualizar
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => openEditDialog(usuario)}>
                         <Pencil className="mr-2 h-4 w-4" />
                         Editar
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem variant="destructive">
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onClick={() => setUsuarioToDelete(usuario)}
+                      >
                         <Trash2 className="mr-2 h-4 w-4" />
-                        Desativar
+                        Apagar
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -271,7 +351,7 @@ export function UsuariosTable({ searchQuery }: UsuariosTableProps) {
             size="icon"
             className="h-8 w-8"
             onClick={() => setCurrentPage(1)}
-            disabled={currentPage === 1}
+            disabled={safeCurrentPage === 1}
           >
             <ChevronsLeft className="h-4 w-4" />
             <span className="sr-only">Primeira página</span>
@@ -281,20 +361,20 @@ export function UsuariosTable({ searchQuery }: UsuariosTableProps) {
             size="icon"
             className="h-8 w-8"
             onClick={() => setCurrentPage(currentPage - 1)}
-            disabled={currentPage === 1}
+            disabled={safeCurrentPage === 1}
           >
             <ChevronLeft className="h-4 w-4" />
             <span className="sr-only">Página anterior</span>
           </Button>
           <span className="px-3 text-sm text-muted-foreground">
-            Página {currentPage} de {totalPages}
+            Página {safeCurrentPage} de {totalPages}
           </span>
           <Button
             variant="outline"
             size="icon"
             className="h-8 w-8"
             onClick={() => setCurrentPage(currentPage + 1)}
-            disabled={currentPage === totalPages}
+            disabled={safeCurrentPage === totalPages}
           >
             <ChevronRight className="h-4 w-4" />
             <span className="sr-only">Próxima página</span>
@@ -304,7 +384,7 @@ export function UsuariosTable({ searchQuery }: UsuariosTableProps) {
             size="icon"
             className="h-8 w-8"
             onClick={() => setCurrentPage(totalPages)}
-            disabled={currentPage === totalPages}
+            disabled={safeCurrentPage === totalPages}
           >
             <ChevronsRight className="h-4 w-4" />
             <span className="sr-only">Última página</span>
@@ -312,5 +392,172 @@ export function UsuariosTable({ searchQuery }: UsuariosTableProps) {
         </div>
       </div>
     </Card>
+
+    <Dialog open={dialogMode !== null} onOpenChange={(open) => !open && closeDialog()}>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>
+            {dialogMode === "edit" ? "Editar Usuário" : "Visualizar Usuário"}
+          </DialogTitle>
+          <DialogDescription>
+            {dialogMode === "edit"
+              ? "Atualize os dados do usuário selecionado."
+              : "Confira as informações completas do usuário selecionado."}
+          </DialogDescription>
+        </DialogHeader>
+
+        {dialogUsuario && (
+          <form onSubmit={handleSaveEdit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="usuario-id">ID</Label>
+              <Input id="usuario-id" value={dialogUsuario.id} disabled />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="usuario-nome">Nome</Label>
+                <Input
+                  id="usuario-nome"
+                  value={dialogUsuario.nome}
+                  disabled={dialogMode === "view"}
+                  onChange={(event) =>
+                    setEditForm((prev) =>
+                      prev ? { ...prev, nome: event.target.value } : prev,
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="usuario-email">E-mail</Label>
+                <Input
+                  id="usuario-email"
+                  value={dialogUsuario.email}
+                  disabled={dialogMode === "view"}
+                  onChange={(event) =>
+                    setEditForm((prev) =>
+                      prev ? { ...prev, email: event.target.value } : prev,
+                    )
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="usuario-cargo">Cargo</Label>
+                <Input
+                  id="usuario-cargo"
+                  value={dialogUsuario.cargo}
+                  disabled={dialogMode === "view"}
+                  onChange={(event) =>
+                    setEditForm((prev) =>
+                      prev ? { ...prev, cargo: event.target.value } : prev,
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="usuario-departamento">Departamento</Label>
+                <Input
+                  id="usuario-departamento"
+                  value={dialogUsuario.departamento}
+                  disabled={dialogMode === "view"}
+                  onChange={(event) =>
+                    setEditForm((prev) =>
+                      prev ? { ...prev, departamento: event.target.value } : prev,
+                    )
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Nível de acesso</Label>
+                <Select
+                  value={dialogUsuario.nivelAcesso}
+                  disabled={dialogMode === "view"}
+                  onValueChange={(value: Usuario["nivelAcesso"]) =>
+                    setEditForm((prev) =>
+                      prev ? { ...prev, nivelAcesso: value } : prev,
+                    )
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="gestor">Gestor</SelectItem>
+                    <SelectItem value="analista">Analista</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select
+                  value={dialogUsuario.status}
+                  disabled={dialogMode === "view"}
+                  onValueChange={(value: Usuario["status"]) =>
+                    setEditForm((prev) =>
+                      prev ? { ...prev, status: value } : prev,
+                    )
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ativo">Ativo</SelectItem>
+                    <SelectItem value="inativo">Inativo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="usuario-ultimo-acesso">Último acesso</Label>
+              <Input
+                id="usuario-ultimo-acesso"
+                value={dialogUsuario.ultimoAcesso}
+                disabled={dialogMode === "view"}
+                onChange={(event) =>
+                  setEditForm((prev) =>
+                    prev ? { ...prev, ultimoAcesso: event.target.value } : prev,
+                  )
+                }
+              />
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={closeDialog}>
+                Fechar
+              </Button>
+              {dialogMode === "edit" && <Button type="submit">Salvar Alterações</Button>}
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+
+    <AlertDialog open={usuarioToDelete !== null} onOpenChange={(open) => !open && setUsuarioToDelete(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Apagar usuário?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {usuarioToDelete
+              ? `Esta ação removerá ${usuarioToDelete.nome} da lista atual.`
+              : "Esta ação removerá o usuário da lista atual."}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction className="bg-destructive text-white hover:bg-destructive/90" onClick={handleDeleteUsuario}>
+            Apagar
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   )
 }
