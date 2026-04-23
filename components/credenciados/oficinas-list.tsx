@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  CredenciadoStatus,
+  getCredenciadosStore,
+  setCredenciadosStore,
+} from "@/lib/business-rules-store";
 
 interface Oficina {
   id: string;
@@ -44,6 +49,15 @@ interface Oficina {
   phone: string;
   email: string;
   status: "ativo" | "pendente" | "suspenso";
+}
+
+interface EditFormState {
+  name: string;
+  city: string;
+  specialty: string;
+  phone: string;
+  email: string;
+  status: Oficina["status"];
 }
 
 const oficinasData: Oficina[] = [
@@ -208,14 +222,37 @@ export function OficinasList({
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
   const [isSuspendDialogOpen, setIsSuspendDialogOpen] = useState(false);
   const [selectedOficina, setSelectedOficina] = useState<Oficina | null>(null);
-  const [editForm, setEditForm] = useState({
+  const [editForm, setEditForm] = useState<EditFormState>({
     name: "",
     city: "",
     specialty: "",
     phone: "",
     email: "",
-    status: "ativo" as Oficina["status"],
+    status: "ativo",
   });
+
+  useEffect(() => {
+    const credenciados = getCredenciadosStore();
+    const credenciadoMap = new Map(
+      credenciados.map((credenciado) => [credenciado.id, credenciado]),
+    );
+
+    setOficinas((current) =>
+      current.map((oficina) => {
+        const credenciado = credenciadoMap.get(oficina.id);
+
+        if (!credenciado) {
+          return oficina;
+        }
+
+        return {
+          ...oficina,
+          name: credenciado.name,
+          status: credenciado.status,
+        };
+      }),
+    );
+  }, []);
 
   const handleOpenEdit = (oficina: Oficina) => {
     setSelectedOficina(oficina);
@@ -237,6 +274,37 @@ export function OficinasList({
 
   const handleSaveEdit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (!selectedOficina) {
+      return;
+    }
+
+    setOficinas((currentOficinas) => {
+      const updatedOficinas = currentOficinas.map((oficina) =>
+        oficina.id === selectedOficina.id
+          ? {
+              ...oficina,
+              name: editForm.name,
+              city: editForm.city,
+              specialty: editForm.specialty,
+              phone: editForm.phone,
+              email: editForm.email,
+              status: editForm.status as Oficina["status"],
+            }
+          : oficina,
+      );
+
+      setCredenciadosStore(
+        updatedOficinas.map((oficina) => ({
+          id: oficina.id,
+          name: oficina.name,
+          status: oficina.status as CredenciadoStatus,
+        })),
+      );
+
+      return updatedOficinas;
+    });
+
     setIsEditDialogOpen(false);
   };
 
@@ -250,13 +318,23 @@ export function OficinasList({
       return;
     }
 
-    setOficinas((currentOficinas) =>
-      currentOficinas.map((oficina) =>
+    setOficinas((currentOficinas) => {
+      const updatedOficinas = currentOficinas.map((oficina) =>
         oficina.id === selectedOficina.id
-          ? { ...oficina, status: "suspenso" }
+          ? { ...oficina, status: "suspenso" as Oficina["status"] }
           : oficina,
-      ),
-    );
+      );
+
+      setCredenciadosStore(
+        updatedOficinas.map((oficina) => ({
+          id: oficina.id,
+          name: oficina.name,
+          status: oficina.status as CredenciadoStatus,
+        })),
+      );
+
+      return updatedOficinas;
+    });
 
     setIsSuspendDialogOpen(false);
   };

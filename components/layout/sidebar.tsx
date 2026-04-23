@@ -9,7 +9,6 @@ import {
   Database,
   Building2,
   AlertTriangle,
-  Settings,
   LogOut,
   Eye,
   X,
@@ -60,11 +59,6 @@ const navigationItems = [
 
 const footerItems = [
   {
-    name: "Configuracoes",
-    href: "/configuracoes",
-    icon: Settings,
-  },
-  {
     name: "Sair",
     href: "/logout",
     icon: LogOut,
@@ -106,7 +100,10 @@ export function Sidebar({
         >
           <Link
             href="/dashboard"
-            className={cn("flex items-center gap-3", isCollapsed && "lg:hidden")}
+            className={cn(
+              "flex items-center gap-3",
+              isCollapsed && "lg:hidden",
+            )}
           >
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
               <Eye className="h-5 w-5 text-primary-foreground" />
@@ -199,7 +196,9 @@ export function Sidebar({
                   title={isCollapsed ? item.name : undefined}
                 >
                   <item.icon className="h-5 w-5 shrink-0" />
-                  <span className={cn(isCollapsed && "lg:hidden")}>{item.name}</span>
+                  <span className={cn(isCollapsed && "lg:hidden")}>
+                    {item.name}
+                  </span>
                 </Link>
               </li>
             ))}

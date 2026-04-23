@@ -1,6 +1,6 @@
 "use client";
 
-import { DragEvent, useMemo, useState } from "react";
+import { DragEvent, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { KanbanStage, ClaimCard, StageId } from "./kanban-board";
@@ -50,6 +50,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  getCredenciadosDisponiveisNomes,
+  upsertVistoriaVinculadaStore,
+} from "@/lib/business-rules-store";
 
 interface KanbanColumnProps {
   stage: KanbanStage;
@@ -121,6 +125,17 @@ function ClaimCardComponent({
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isQuickVistoriaOpen, setIsQuickVistoriaOpen] = useState(false);
+  const [credenciadosDisponiveis, setCredenciadosDisponiveis] = useState<
+    string[]
+  >([]);
+  const [quickVistoria, setQuickVistoria] = useState({
+    credenciado: card.credenciado || "",
+    statusVistoria: (card.statusVistoria || "pendente") as
+      | "agendada"
+      | "realizada"
+      | "pendente",
+  });
   const [formState, setFormState] = useState({
     vehicle: card.vehicle,
     plate: card.plate,
@@ -129,13 +144,32 @@ function ClaimCardComponent({
     priority: card.priority,
     daysInStage: String(card.daysInStage),
     credenciado: card.credenciado || "",
-    statusVistoria: card.statusVistoria || "pendente",
+    statusVistoria: (card.statusVistoria || "pendente") as
+      | "agendada"
+      | "realizada"
+      | "pendente",
   });
 
   const formattedStatus = useMemo(
     () => stageId.charAt(0).toUpperCase() + stageId.slice(1),
     [stageId],
   );
+
+  useEffect(() => {
+    const syncCredenciados = () => {
+      setCredenciadosDisponiveis(getCredenciadosDisponiveisNomes());
+    };
+
+    syncCredenciados();
+    window.addEventListener("argos:credenciados-updated", syncCredenciados);
+
+    return () => {
+      window.removeEventListener(
+        "argos:credenciados-updated",
+        syncCredenciados,
+      );
+    };
+  }, []);
 
   const handleDragStart = (event: DragEvent<HTMLDivElement>) => {
     event.dataTransfer.setData(
@@ -154,7 +188,10 @@ function ClaimCardComponent({
       priority: card.priority,
       daysInStage: String(card.daysInStage),
       credenciado: card.credenciado || "",
-      statusVistoria: card.statusVistoria || "pendente",
+      statusVistoria: (card.statusVistoria || "pendente") as
+        | "agendada"
+        | "realizada"
+        | "pendente",
     });
     setIsDetailsOpen(false);
     setIsEditOpen(true);
@@ -162,6 +199,11 @@ function ClaimCardComponent({
 
   const handleSaveEdit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    const statusVistoria = formState.statusVistoria as
+      | "agendada"
+      | "realizada"
+      | "pendente";
 
     onUpdateCard(stageId, card.id, {
       vehicle: formState.vehicle,
@@ -171,17 +213,53 @@ function ClaimCardComponent({
       priority: formState.priority,
       daysInStage: Number.parseInt(formState.daysInStage || "0", 10),
       credenciado: formState.credenciado,
-      localVistoria: formState.localVistoria,
-      dataVistoria: formState.dataVistoria,
-      horaVistoria: formState.horaVistoria,
-      statusVistoria: formState.statusVistoria as "agendada" | "realizada" | "pendente",
+      statusVistoria,
     });
+
+    if (formState.credenciado) {
+      upsertVistoriaVinculadaStore({
+        sinistroId: card.id,
+        veiculo: formState.vehicle,
+        placa: formState.plate,
+        credenciado: formState.credenciado,
+        status: statusVistoria,
+      });
+    }
 
     setIsEditOpen(false);
   };
 
   const handleOpenDetails = () => {
+    setQuickVistoria({
+      credenciado: card.credenciado || "",
+      statusVistoria: (card.statusVistoria || "pendente") as
+        | "agendada"
+        | "realizada"
+        | "pendente",
+    });
+    setIsQuickVistoriaOpen(false);
     setIsDetailsOpen(true);
+  };
+
+  const handleSaveQuickVistoria = () => {
+    if (!quickVistoria.credenciado) {
+      return;
+    }
+
+    onUpdateCard(stageId, card.id, {
+      credenciado: quickVistoria.credenciado,
+      statusVistoria: quickVistoria.statusVistoria,
+    });
+
+    upsertVistoriaVinculadaStore({
+      sinistroId: card.id,
+      veiculo: card.vehicle,
+      placa: card.plate,
+      credenciado: quickVistoria.credenciado,
+      status: quickVistoria.statusVistoria,
+    });
+
+    setIsQuickVistoriaOpen(false);
   };
 
   return (
@@ -246,8 +324,8 @@ function ClaimCardComponent({
             </DropdownMenu>
           </div>
 
-          <div className="overflow-hidden rounded-md border border-border/60 bg-gradient-to-br from-muted/65 via-muted/30 to-background px-2 py-1.5">
-            <p className="text-[8px] uppercase tracking-[0.1em] text-muted-foreground">
+          <div className="overflow-hidden rounded-md border border-border/60 bg-linear-to-br from-muted/65 via-muted/30 to-background px-2 py-1.5">
+            <p className="text-[8px] uppercase tracking-widest text-muted-foreground">
               Entrada
             </p>
             <p className="mt-0.5 truncate text-[11px] font-semibold leading-tight text-foreground">
@@ -324,34 +402,118 @@ function ClaimCardComponent({
               </div>
             </div>
 
-            {card.credenciado && (
-              <div className="space-y-2 border-t pt-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Credenciado:</span>
-                  <span className="font-medium">{card.credenciado}</span>
+            <div className="space-y-3 border-t pt-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm text-muted-foreground">Vistoria</p>
+                  <p className="text-sm font-medium text-foreground">
+                    Credenciado e status
+                  </p>
                 </div>
-                {card.statusVistoria && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Status Vistoria:</span>
-                    <Badge
-                      variant={
-                        card.statusVistoria === "realizada"
-                          ? "default"
-                          : card.statusVistoria === "agendada"
-                            ? "secondary"
-                            : "outline"
-                      }
-                    >
-                      {card.statusVistoria === "realizada"
-                        ? "Realizada"
-                        : card.statusVistoria === "agendada"
-                          ? "Agendada"
-                          : "Pendente"}
-                    </Badge>
-                  </div>
-                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsQuickVistoriaOpen((prev) => !prev)}
+                >
+                  {card.credenciado
+                    ? "Alterar vistoria"
+                    : "Adicionar vistoriador"}
+                </Button>
               </div>
-            )}
+
+              {isQuickVistoriaOpen && (
+                <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor={`quick-credenciado-${card.id}`}>
+                        Credenciado
+                      </Label>
+                      <Select
+                        value={quickVistoria.credenciado}
+                        onValueChange={(value) =>
+                          setQuickVistoria((prev) => ({
+                            ...prev,
+                            credenciado: value,
+                          }))
+                        }
+                      >
+                        <SelectTrigger
+                          id={`quick-credenciado-${card.id}`}
+                          className="w-full"
+                        >
+                          <SelectValue placeholder="Selecione um credenciado" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {credenciadosDisponiveis.map((credenciado) => (
+                            <SelectItem key={credenciado} value={credenciado}>
+                              {credenciado}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor={`quick-status-${card.id}`}>Status</Label>
+                      <Select
+                        value={quickVistoria.statusVistoria}
+                        onValueChange={(value) =>
+                          setQuickVistoria((prev) => ({
+                            ...prev,
+                            statusVistoria: value as
+                              | "agendada"
+                              | "realizada"
+                              | "pendente",
+                          }))
+                        }
+                      >
+                        <SelectTrigger
+                          id={`quick-status-${card.id}`}
+                          className="w-full"
+                        >
+                          <SelectValue placeholder="Selecione o status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pendente">Pendente</SelectItem>
+                          <SelectItem value="agendada">Agendada</SelectItem>
+                          <SelectItem value="realizada">Realizada</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setQuickVistoria({
+                          credenciado: card.credenciado || "",
+                          statusVistoria: (card.statusVistoria ||
+                            "pendente") as
+                            | "agendada"
+                            | "realizada"
+                            | "pendente",
+                        });
+                        setIsQuickVistoriaOpen(false);
+                      }}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleSaveQuickVistoria}
+                      disabled={!quickVistoria.credenciado}
+                    >
+                      Salvar
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -467,8 +629,10 @@ function ClaimCardComponent({
 
             {/* Seção de Vistoria */}
             <div className="border-t pt-6">
-              <h3 className="mb-4 text-sm font-semibold text-foreground">Vistoria</h3>
-              
+              <h3 className="mb-4 text-sm font-semibold text-foreground">
+                Vistoria
+              </h3>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor={`credenciado-${card.id}`}>Credenciado</Label>
@@ -482,11 +646,11 @@ function ClaimCardComponent({
                       <SelectValue placeholder="Selecione um credenciado" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Auto Center Premium">Auto Center Premium</SelectItem>
-                      <SelectItem value="Oficina Central">Oficina Central</SelectItem>
-                      <SelectItem value="Repair Masters">Repair Masters</SelectItem>
-                      <SelectItem value="Express Auto">Express Auto</SelectItem>
-                      <SelectItem value="Técnicos Associados">Técnicos Associados</SelectItem>
+                      {credenciadosDisponiveis.map((credenciado) => (
+                        <SelectItem key={credenciado} value={credenciado}>
+                          {credenciado}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -496,7 +660,13 @@ function ClaimCardComponent({
                   <Select
                     value={formState.statusVistoria}
                     onValueChange={(value) =>
-                      setFormState((prev) => ({ ...prev, statusVistoria: value }))
+                      setFormState((prev) => ({
+                        ...prev,
+                        statusVistoria: value as
+                          | "agendada"
+                          | "realizada"
+                          | "pendente",
+                      }))
                     }
                   >
                     <SelectTrigger className="w-full">
@@ -526,12 +696,16 @@ function ClaimCardComponent({
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+      <AlertDialog
+        open={isDeleteConfirmOpen}
+        onOpenChange={setIsDeleteConfirmOpen}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja apagar o sinistro <strong>{card.id}</strong>? Esta ação não pode ser desfeita.
+              Tem certeza que deseja apagar o sinistro{" "}
+              <strong>{card.id}</strong>? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -1,9 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { PageHeader } from "@/components/layout/page-header";
-import { Search, Calendar, MapPin, Eye, CheckCircle2, Clock, AlertTriangle, Plus } from "lucide-react";
+import {
+  Search,
+  Calendar,
+  MapPin,
+  Eye,
+  CheckCircle2,
+  Clock,
+  AlertTriangle,
+  Plus,
+  FileText,
+  FileAudio,
+  Image as ImageIcon,
+  ExternalLink,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +38,11 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import {
+  getCredenciadosDisponiveisNomes,
+  getSinistrosStore,
+  getVistoriasVinculadasStore,
+} from "@/lib/business-rules-store";
 
 interface InspecaoData {
   id: string;
@@ -37,8 +55,20 @@ interface InspecaoData {
   veiculo: string;
   placa: string;
   cliente: string;
+  laudo?: string;
+  pdfLaudoUrl?: string;
+  audios?: {
+    id: string;
+    nome: string;
+    url: string;
+    transcricao: string;
+  }[];
+  imagens?: {
+    id: string;
+    nome: string;
+    url: string;
+  }[];
   descricaoArtigos?: string;
-  fotos?: string[];
   observacoes?: string;
 }
 
@@ -54,6 +84,38 @@ const mockInspecoes: InspecaoData[] = [
     veiculo: "Honda Civic",
     placa: "ABC-1234",
     cliente: "João Silva",
+    laudo:
+      "Veículo com avaria na lateral esquerda, incluindo amassamento e risco profundo na porta dianteira. Não foram identificados indícios de danos estruturais no monobloco. Reparo recomendado: funilaria, pintura e alinhamento da porta.",
+    pdfLaudoUrl:
+      "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+    audios: [
+      {
+        id: "AUD-001",
+        nome: "Áudio do vistoriador",
+        url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+        transcricao:
+          "Iniciando vistoria do veículo Honda Civic placa ABC-1234. Constatado dano na porta dianteira esquerda com necessidade de reparo de funilaria.",
+      },
+      {
+        id: "AUD-002",
+        nome: "Relato do segurado",
+        url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+        transcricao:
+          "O impacto ocorreu durante manobra de estacionamento. O veículo estava em baixa velocidade no momento da colisão.",
+      },
+    ],
+    imagens: [
+      {
+        id: "IMG-001",
+        nome: "Lateral esquerda",
+        url: "https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?auto=format&fit=crop&w=1200&q=80",
+      },
+      {
+        id: "IMG-002",
+        nome: "Porta dianteira",
+        url: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?auto=format&fit=crop&w=1200&q=80",
+      },
+    ],
     descricaoArtigos: "Dano na lateral esquerda, amassamento na porta",
   },
   {
@@ -67,6 +129,26 @@ const mockInspecoes: InspecaoData[] = [
     veiculo: "Toyota Corolla",
     placa: "XYZ-5678",
     cliente: "Maria Santos",
+    laudo:
+      "Quebra integral do vidro traseiro com estilhaçamento interno. Não há comprometimento de lanternas ou estrutura de tampa do porta-malas. Reparo recomendado: substituição de vidro e limpeza técnica interna.",
+    pdfLaudoUrl:
+      "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+    audios: [
+      {
+        id: "AUD-003",
+        nome: "Registro da oficina",
+        url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+        transcricao:
+          "Vidro traseiro do Toyota Corolla encontra-se totalmente comprometido. Serviço de substituição pode ser realizado no mesmo dia.",
+      },
+    ],
+    imagens: [
+      {
+        id: "IMG-003",
+        nome: "Vidro traseiro",
+        url: "https://images.unsplash.com/photo-1605515298946-d057f8f06cf7?auto=format&fit=crop&w=1200&q=80",
+      },
+    ],
     descricaoArtigos: "Vidro traseiro quebrado",
     observacoes: "Vistoria realizada com sucesso. Cliente presente.",
   },
@@ -84,20 +166,19 @@ const mockInspecoes: InspecaoData[] = [
   },
 ];
 
-// Sinistros disponíveis para vincular (simulando dados do kanban)
-const sinistrosDisponiveis = [
-  { id: "CLM-127", veiculo: "Honda Civic", placa: "ABC-1234", cliente: "João Silva" },
-  { id: "CLM-126", veiculo: "Toyota Corolla", placa: "XYZ-5678", cliente: "Maria Santos" },
-  { id: "CLM-125", veiculo: "VW Golf", placa: "DEF-9012", cliente: "Carlos Mendes" },
-  { id: "CLM-124", veiculo: "Fiat Uno", placa: "GHI-3456", cliente: "Ana Costa" },
-  { id: "CLM-123", veiculo: "Ford Focus", placa: "JKL-7890", cliente: "Pedro Lima" },
-];
-
 export default function VistoriaPage() {
   const [inspecoes, setInspecoes] = useState<InspecaoData[]>(mockInspecoes);
+  const [credenciadosDisponiveis, setCredenciadosDisponiveis] = useState<
+    string[]
+  >([]);
+  const [sinistrosDisponiveis, setSinistrosDisponiveis] = useState<
+    { id: string; veiculo: string; placa: string; cliente: string }[]
+  >([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("Todas");
-  const [selectedInspecao, setSelectedInspecao] = useState<InspecaoData | null>(null);
+  const [selectedInspecao, setSelectedInspecao] = useState<InspecaoData | null>(
+    null,
+  );
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [nextId, setNextId] = useState(4);
   const [formData, setFormData] = useState({
@@ -105,6 +186,93 @@ export default function VistoriaPage() {
     credenciado: "",
     status: "agendada" as "agendada" | "realizada" | "pendente",
   });
+
+  useEffect(() => {
+    const syncCredenciados = () => {
+      setCredenciadosDisponiveis(getCredenciadosDisponiveisNomes());
+    };
+
+    const syncVistoriasVinculadas = () => {
+      const vinculadas = getVistoriasVinculadasStore();
+
+      setInspecoes((currentInspecoes) => {
+        const updatedInspecoes = [...currentInspecoes];
+
+        vinculadas.forEach((vinculada) => {
+          const existingIndex = updatedInspecoes.findIndex(
+            (inspecao) => inspecao.sinistroId === vinculada.sinistroId,
+          );
+
+          if (existingIndex >= 0) {
+            updatedInspecoes[existingIndex] = {
+              ...updatedInspecoes[existingIndex],
+              credenciado: vinculada.credenciado,
+              status: vinculada.status,
+              veiculo: vinculada.veiculo,
+              placa: vinculada.placa,
+              cliente:
+                updatedInspecoes[existingIndex].cliente ||
+                vinculada.cliente ||
+                "Não informado",
+            };
+            return;
+          }
+
+          updatedInspecoes.push({
+            id: `VST-LNK-${vinculada.sinistroId}`,
+            sinistroId: vinculada.sinistroId,
+            credenciado: vinculada.credenciado,
+            local: "",
+            data: "",
+            hora: "",
+            status: vinculada.status,
+            veiculo: vinculada.veiculo,
+            placa: vinculada.placa,
+            cliente: vinculada.cliente || "Não informado",
+            observacoes:
+              "Vistoria vinculada automaticamente pelo menu de Sinistros.",
+          });
+        });
+
+        return updatedInspecoes;
+      });
+    };
+
+    const syncSinistros = () => {
+      const sinistros = getSinistrosStore();
+      setSinistrosDisponiveis(
+        sinistros.map((sinistro) => ({
+          id: sinistro.id,
+          veiculo: sinistro.vehicle,
+          placa: sinistro.plate,
+          cliente: "Não informado",
+        })),
+      );
+    };
+
+    syncCredenciados();
+    syncSinistros();
+    syncVistoriasVinculadas();
+
+    window.addEventListener("argos:credenciados-updated", syncCredenciados);
+    window.addEventListener("argos:sinistros-updated", syncSinistros);
+    window.addEventListener(
+      "argos:vistorias-vinculadas-updated",
+      syncVistoriasVinculadas,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "argos:credenciados-updated",
+        syncCredenciados,
+      );
+      window.removeEventListener("argos:sinistros-updated", syncSinistros);
+      window.removeEventListener(
+        "argos:vistorias-vinculadas-updated",
+        syncVistoriasVinculadas,
+      );
+    };
+  }, []);
 
   const filteredInspecoes = inspecoes.filter((inspecao) => {
     const matchesSearch =
@@ -130,22 +298,32 @@ export default function VistoriaPage() {
       case "realizada":
         return {
           label: "Realizada",
-          color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+          color:
+            "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
           icon: CheckCircle2,
         };
       case "agendada":
         return {
           label: "Agendada",
-          color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+          color:
+            "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
           icon: Calendar,
         };
       default:
         return {
           label: "Pendente",
-          color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+          color:
+            "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
           icon: AlertTriangle,
         };
     }
+  };
+
+  const formatarDataHora = (data?: string, hora?: string) => {
+    if (!data || !hora) return "Não informado";
+    const dataConvertida = new Date(data);
+    if (Number.isNaN(dataConvertida.getTime())) return "Não informado";
+    return `${dataConvertida.toLocaleDateString("pt-BR")} às ${hora}`;
   };
 
   const handleCreateVistoria = (e: React.FormEvent) => {
@@ -157,14 +335,18 @@ export default function VistoriaPage() {
     }
 
     // Encontrar dados do sinistro
-    const sinistroInfo = sinistrosDisponiveis.find(s => s.id === formData.sinistroId);
+    const sinistroInfo = sinistrosDisponiveis.find(
+      (s) => s.id === formData.sinistroId,
+    );
     if (!sinistroInfo) {
       alert("Sinistro não encontrado");
       return;
     }
 
     // Verificar se já existe vistoria para este sinistro
-    const jaPossuiVistoria = inspecoes.some(i => i.sinistroId === formData.sinistroId);
+    const jaPossuiVistoria = inspecoes.some(
+      (i) => i.sinistroId === formData.sinistroId,
+    );
     if (jaPossuiVistoria) {
       alert("Este sinistro já possui uma vistoria vinculada");
       return;
@@ -277,7 +459,9 @@ export default function VistoriaPage() {
           {filteredInspecoes.length === 0 ? (
             <Card>
               <CardContent className="flex h-32 items-center justify-center">
-                <p className="text-sm text-muted-foreground">Nenhuma vistoria encontrada</p>
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma vistoria encontrada
+                </p>
               </CardContent>
             </Card>
           ) : (
@@ -286,15 +470,25 @@ export default function VistoriaPage() {
               const StatusIcon = statusConfig.icon;
 
               return (
-                <Card key={inspecao.id} className="hover:shadow-md transition-shadow">
+                <Card
+                  key={inspecao.id}
+                  className="hover:shadow-md transition-shadow"
+                >
                   <CardContent className="pt-6">
                     <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                       <div className="flex-1 space-y-3">
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="text-lg font-semibold">{inspecao.sinistroId}</span>
-                              <Badge className={cn("inline-flex gap-1", statusConfig.color)}>
+                              <span className="text-lg font-semibold">
+                                {inspecao.sinistroId}
+                              </span>
+                              <Badge
+                                className={cn(
+                                  "inline-flex gap-1",
+                                  statusConfig.color,
+                                )}
+                              >
                                 <StatusIcon className="h-3 w-3" />
                                 {statusConfig.label}
                               </Badge>
@@ -317,11 +511,13 @@ export default function VistoriaPage() {
                           <div className="flex items-center gap-2 text-muted-foreground">
                             <Calendar className="h-4 w-4" />
                             <span>
-                              {new Date(inspecao.data).toLocaleDateString("pt-BR")} às {inspecao.hora}
+                              {formatarDataHora(inspecao.data, inspecao.hora)}
                             </span>
                           </div>
                           <div className="flex items-center gap-2 text-muted-foreground">
-                            <span className="font-medium text-foreground">Cliente:</span>
+                            <span className="font-medium text-foreground">
+                              Cliente:
+                            </span>
                             <span>{inspecao.cliente}</span>
                           </div>
                         </div>
@@ -347,10 +543,15 @@ export default function VistoriaPage() {
       </div>
 
       {/* Modal de Detalhes */}
-      <Dialog open={!!selectedInspecao} onOpenChange={() => setSelectedInspecao(null)}>
-        <DialogContent className="sm:max-w-lg">
+      <Dialog
+        open={!!selectedInspecao}
+        onOpenChange={() => setSelectedInspecao(null)}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Detalhes da Vistoria {selectedInspecao?.id}</DialogTitle>
+            <DialogTitle>
+              Detalhes da Vistoria {selectedInspecao?.id}
+            </DialogTitle>
             <DialogDescription>
               Sinistro {selectedInspecao?.sinistroId}
             </DialogDescription>
@@ -363,29 +564,39 @@ export default function VistoriaPage() {
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">
                     Veículo
                   </p>
-                  <p className="text-sm font-medium">{selectedInspecao.veiculo}</p>
-                  <p className="text-xs text-muted-foreground">{selectedInspecao.placa}</p>
+                  <p className="text-sm font-medium">
+                    {selectedInspecao.veiculo}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedInspecao.placa}
+                  </p>
                 </div>
 
                 <div className="space-y-1 rounded-lg border border-border/60 bg-muted/20 p-3">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">
                     Cliente
                   </p>
-                  <p className="text-sm font-medium">{selectedInspecao.cliente}</p>
+                  <p className="text-sm font-medium">
+                    {selectedInspecao.cliente}
+                  </p>
                 </div>
 
                 <div className="space-y-1 rounded-lg border border-border/60 bg-muted/20 p-3">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">
                     Credenciado
                   </p>
-                  <p className="text-sm font-medium">{selectedInspecao.credenciado}</p>
+                  <p className="text-sm font-medium">
+                    {selectedInspecao.credenciado}
+                  </p>
                 </div>
 
                 <div className="space-y-1 rounded-lg border border-border/60 bg-muted/20 p-3">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">
                     Local
                   </p>
-                  <p className="text-sm font-medium">{selectedInspecao.local}</p>
+                  <p className="text-sm font-medium">
+                    {selectedInspecao.local}
+                  </p>
                 </div>
 
                 <div className="space-y-1 rounded-lg border border-border/60 bg-muted/20 p-3">
@@ -393,7 +604,10 @@ export default function VistoriaPage() {
                     Data e Hora
                   </p>
                   <p className="text-sm font-medium">
-                    {new Date(selectedInspecao.data).toLocaleDateString("pt-BR")} às {selectedInspecao.hora}
+                    {formatarDataHora(
+                      selectedInspecao.data,
+                      selectedInspecao.hora,
+                    )}
                   </p>
                 </div>
 
@@ -419,7 +633,9 @@ export default function VistoriaPage() {
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">
                     Descrição de Artigos
                   </p>
-                  <p className="text-sm text-foreground">{selectedInspecao.descricaoArtigos}</p>
+                  <p className="text-sm text-foreground">
+                    {selectedInspecao.descricaoArtigos}
+                  </p>
                 </div>
               )}
 
@@ -428,9 +644,130 @@ export default function VistoriaPage() {
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">
                     Observações
                   </p>
-                  <p className="text-sm text-foreground">{selectedInspecao.observacoes}</p>
+                  <p className="text-sm text-foreground">
+                    {selectedInspecao.observacoes}
+                  </p>
                 </div>
               )}
+
+              <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Laudo técnico
+                  </p>
+                </div>
+                <p className="text-sm text-foreground">
+                  {selectedInspecao.laudo ||
+                    "Laudo ainda não anexado para esta vistoria."}
+                </p>
+              </div>
+
+              <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Laudo em PDF
+                    </p>
+                  </div>
+                  {selectedInspecao.pdfLaudoUrl && (
+                    <Button
+                      asChild
+                      size="sm"
+                      variant="outline"
+                      className="gap-2"
+                    >
+                      <a
+                        href={selectedInspecao.pdfLaudoUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Abrir PDF
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </Button>
+                  )}
+                </div>
+
+                <p className="text-sm text-muted-foreground">
+                  {selectedInspecao.pdfLaudoUrl
+                    ? "Clique em 'Abrir PDF' para visualizar o documento."
+                    : "PDF não disponível."}
+                </p>
+              </div>
+
+              <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+                <div className="flex items-center gap-2">
+                  <FileAudio className="h-4 w-4 text-muted-foreground" />
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Áudios e transcrições
+                  </p>
+                </div>
+
+                {selectedInspecao.audios?.length ? (
+                  selectedInspecao.audios.map((audio) => (
+                    <div
+                      key={audio.id}
+                      className="space-y-2 rounded-md border border-border/60 bg-background p-3"
+                    >
+                      <p className="text-sm font-medium">{audio.nome}</p>
+                      <audio controls className="w-full">
+                        <source src={audio.url} type="audio/mpeg" />
+                        Seu navegador não suporta reprodução de áudio.
+                      </audio>
+                      <div className="space-y-1">
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Transcrição
+                        </p>
+                        <p className="text-sm text-foreground">
+                          {audio.transcricao}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Nenhum áudio anexado.
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Imagens
+                  </p>
+                </div>
+
+                {selectedInspecao.imagens?.length ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {selectedInspecao.imagens.map((imagem) => (
+                      <a
+                        key={imagem.id}
+                        href={imagem.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group overflow-hidden rounded-md border border-border/60 bg-background"
+                      >
+                        <img
+                          src={imagem.url}
+                          alt={imagem.nome}
+                          className="h-36 w-full object-cover transition-transform group-hover:scale-[1.02]"
+                        />
+                        <div className="px-3 py-2 text-xs text-muted-foreground">
+                          {imagem.nome}
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Nenhuma imagem anexada.
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </DialogContent>
@@ -460,7 +797,9 @@ export default function VistoriaPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {sinistrosDisponiveis
-                    .filter(s => !inspecoes.some(i => i.sinistroId === s.id))
+                    .filter(
+                      (s) => !inspecoes.some((i) => i.sinistroId === s.id),
+                    )
                     .map((sinistro) => (
                       <SelectItem key={sinistro.id} value={sinistro.id}>
                         {sinistro.id} - {sinistro.veiculo} ({sinistro.placa})
@@ -482,11 +821,11 @@ export default function VistoriaPage() {
                   <SelectValue placeholder="Selecione um credenciado" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Auto Center Premium">Auto Center Premium</SelectItem>
-                  <SelectItem value="Oficina Central">Oficina Central</SelectItem>
-                  <SelectItem value="Repair Masters">Repair Masters</SelectItem>
-                  <SelectItem value="Express Auto">Express Auto</SelectItem>
-                  <SelectItem value="Técnicos Associados">Técnicos Associados</SelectItem>
+                  {credenciadosDisponiveis.map((credenciado) => (
+                    <SelectItem key={credenciado} value={credenciado}>
+                      {credenciado}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

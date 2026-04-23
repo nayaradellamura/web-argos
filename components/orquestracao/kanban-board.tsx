@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +22,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { KanbanColumn } from "./kanban-column";
+import {
+  getSinistrosStore,
+  setSinistrosStore,
+  SinistroStoreItem,
+} from "@/lib/business-rules-store";
 
 export type StageId =
   | "fnol"
@@ -284,6 +289,49 @@ const initialStages: KanbanStage[] = initialStagesSeed.map((stage) => ({
   cards: stage.cards.map((card) => ({ ...card, status: stage.id })),
 }));
 
+const initialSinistrosStoreItems: SinistroStoreItem[] = initialStages.flatMap(
+  (stage) =>
+    stage.cards.map((card) => ({
+      id: card.id,
+      vehicle: card.vehicle,
+      plate: card.plate,
+      workshop: card.workshop,
+      entryDate: card.entryDate,
+      priority: card.priority,
+      daysInStage: card.daysInStage,
+      status: card.status,
+      credenciado: card.credenciado,
+      statusVistoria: card.statusVistoria,
+    })),
+);
+
+function buildStagesFromSinistros(
+  sinistros: SinistroStoreItem[],
+): KanbanStage[] {
+  const emptyStages = initialStagesSeed.map((stage) => ({
+    id: stage.id,
+    title: stage.title,
+    color: stage.color,
+    cards: [] as ClaimCard[],
+  }));
+
+  const stageById = new Map(emptyStages.map((stage) => [stage.id, stage]));
+
+  sinistros.forEach((sinistro) => {
+    const stage = stageById.get(sinistro.status);
+    if (!stage) {
+      return;
+    }
+
+    stage.cards.push({
+      ...sinistro,
+      status: sinistro.status,
+    });
+  });
+
+  return emptyStages;
+}
+
 function getNextClaimId(stages: KanbanStage[]) {
   const maxId = stages.reduce((currentMax, stage) => {
     const stageMax = stage.cards.reduce((cardMax, card) => {
@@ -311,6 +359,30 @@ export function KanbanBoard() {
     priority: "within-sla" as ClaimCard["priority"],
     daysInStage: "0",
   });
+
+  useEffect(() => {
+    const storedSinistros = getSinistrosStore(initialSinistrosStoreItems);
+    setStages(buildStagesFromSinistros(storedSinistros));
+  }, []);
+
+  useEffect(() => {
+    const flatSinistros: SinistroStoreItem[] = stages.flatMap((stage) =>
+      stage.cards.map((card) => ({
+        id: card.id,
+        vehicle: card.vehicle,
+        plate: card.plate,
+        workshop: card.workshop,
+        entryDate: card.entryDate,
+        priority: card.priority,
+        daysInStage: card.daysInStage,
+        status: card.status,
+        credenciado: card.credenciado,
+        statusVistoria: card.statusVistoria,
+      })),
+    );
+
+    setSinistrosStore(flatSinistros);
+  }, [stages]);
 
   const handleCreateCard = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

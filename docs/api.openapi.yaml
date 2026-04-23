@@ -1,0 +1,3312 @@
+openapi: 3.0.3
+info:
+  title: "ARGOS"
+  description: "Backend API para gerenciamento de sinistros, vistorias, credenciados, cadastros e alertas. Desenvolvido para suportar o sistema de rastreamento e orquestração de vistoria de seguros."
+  version: "1.0.0"
+  contact:
+    name: "Engenharia ARGOS"
+    email: "dev@argos.local"
+  license:
+    name: "MIT"
+
+servers:
+  - url: "http://localhost:3001/api"
+    description: "Development Server"
+  - url: "https://api.argos.local"
+    description: "Production Server"
+
+tags:
+  - name: "Authentication"
+    description: "Endpoints de autenticação, login, logout e gestão de sessão"
+  - name: "Perfil"
+    description: "Endpoints de leitura e atualização do perfil do usuário autenticado"
+  - name: "Configurações"
+    description: "Endpoints de configurações do sistema e preferências de notificação"
+  - name: "Dashboard"
+    description: "KPIs, gráficos de severidade, métricas gerais e feeds"
+  - name: "Sinistros"
+    description: "CRUD de sinistros, movimento de estados (kanban), vinculação a vistorias"
+  - name: "Vistorias"
+    description: "CRUD de vistorias, laudos técnicos, áudios, imagens, PDFs"
+  - name: "Cadastros"
+    description: "Gestão de clientes, veículos e usuários do sistema"
+  - name: "Credenciados"
+    description: "CRUD de oficinas credenciadas, status, histórico, filtros"
+  - name: "Alertas"
+    description: "Listagem de alertas, marcação como lido, contadores por categoria"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "JWT token obtido no login"
+
+  responses:
+    UnauthorizedError:
+      description: "Não autenticado ou token inválido"
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "Unauthorized"
+              message:
+                type: string
+                example: "Token inválido ou expirado"
+
+    ForbiddenError:
+      description: "Autenticado mas sem permissão"
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "Forbidden"
+              message:
+                type: string
+                example: "Você não tem permissão para acessar este recurso"
+
+    NotFoundError:
+      description: "Recurso não encontrado"
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "NotFound"
+              message:
+                type: string
+                example: "Recurso não encontrado"
+
+    ValidationError:
+      description: "Erros de validação nos dados enviados"
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "ValidationError"
+              message:
+                type: string
+                example: "Dados inválidos"
+              details:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    field:
+                      type: string
+                    message:
+                      type: string
+
+    ServerError:
+      description: "Erro interno do servidor"
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "InternalServerError"
+              message:
+                type: string
+                example: "Erro ao processar a solicitação"
+
+  schemas:
+    # ============= AUTHENTICATION SCHEMAS =============
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: "admin@argos.local"
+        password:
+          type: string
+          format: password
+          example: "senha123"
+
+    LoginResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/AuthUser"
+        tokens:
+          $ref: "#/components/schemas/AuthTokens"
+
+    AuthTokens:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refreshToken:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        expiresIn:
+          type: number
+          example: 3600
+
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "user-001"
+        email:
+          type: string
+          example: "admin@argos.local"
+        name:
+          type: string
+          example: "Admin User"
+        role:
+          type: string
+          enum: ["admin", "operator", "viewer"]
+          example: "admin"
+        createdAt:
+          type: string
+          format: date-time
+
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "user-001"
+        email:
+          type: string
+          example: "admin@argos.local"
+        name:
+          type: string
+          example: "Admin User"
+        role:
+          type: string
+          enum: ["admin", "operator", "viewer"]
+          example: "admin"
+        createdAt:
+          type: string
+          format: date-time
+
+    # ============= DASHBOARD SCHEMAS =============
+    KPICard:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "kpi-001"
+        titulo:
+          type: string
+          example: "Total de Sinistros"
+        valor:
+          type: number
+          example: 152
+        trend:
+          type: string
+          enum: ["up", "down", "stable"]
+          example: "up"
+        percentualMes:
+          type: number
+          example: 8.5
+        descricao:
+          type: string
+          example: "Aumento de 8.5% em relação ao mês anterior"
+
+    SeverityChartData:
+      type: object
+      properties:
+        severity:
+          type: string
+          enum: ["crítica", "alta", "média", "baixa"]
+          example: "crítica"
+        count:
+          type: number
+          example: 34
+        percentage:
+          type: number
+          example: 22.4
+
+    AlertFeedItem:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "alerta-001"
+        tipo:
+          type: string
+          enum:
+            [
+              "sinistro_criado",
+              "status_alterado",
+              "vistoria_marcada",
+              "documentacao",
+            ]
+          example: "status_alterado"
+        titulo:
+          type: string
+          example: "Sinistro SIN-2024-001 mudou para 'Aguardando Vistoria'"
+        timestamp:
+          type: string
+          format: date-time
+        lido:
+          type: boolean
+          example: false
+
+    RecentClaimRow:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "SIN-2024-152"
+        cliente:
+          type: string
+          example: "João Silva"
+        veiculo:
+          type: string
+          example: "Honda Civic 2020"
+        status:
+          type: string
+          enum:
+            [
+              "novo",
+              "aguardando_vistoria",
+              "vistoria_agendada",
+              "vistoria_realizada",
+              "laudo_pendente",
+              "laudo_concluido",
+              "pago",
+              "negado",
+            ]
+          example: "aguardando_vistoria"
+        dataAbertura:
+          type: string
+          format: date-time
+        valor:
+          type: number
+          example: 8500.00
+
+    # ============= SINISTROS SCHEMAS =============
+    SinistroCreateRequest:
+      type: object
+      required:
+        - cliente
+        - veiculo
+        - placa
+        - descricao
+        - valor_estimado
+      properties:
+        cliente:
+          type: string
+          example: "João Silva"
+        veiculo:
+          type: string
+          example: "Honda Civic 2020"
+        placa:
+          type: string
+          example: "ABC-1234"
+        descricao:
+          type: string
+          example: "Colisão frontal em semáforo"
+        valor_estimado:
+          type: number
+          example: 8500.00
+        data_sinistro:
+          type: string
+          format: date-time
+
+    SinistroUpdateRequest:
+      type: object
+      properties:
+        cliente:
+          type: string
+        veiculo:
+          type: string
+        placa:
+          type: string
+        descricao:
+          type: string
+        valor_estimado:
+          type: number
+        status:
+          type: string
+          enum:
+            [
+              "novo",
+              "aguardando_vistoria",
+              "vistoria_agendada",
+              "vistoria_realizada",
+              "laudo_pendente",
+              "laudo_concluido",
+              "pago",
+              "negado",
+            ]
+
+    Sinistro:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "SIN-2024-152"
+        cliente:
+          type: string
+          example: "João Silva"
+        veiculo:
+          type: string
+          example: "Honda Civic 2020"
+        placa:
+          type: string
+          example: "ABC-1234"
+        descricao:
+          type: string
+          example: "Colisão frontal em semáforo"
+        valor_estimado:
+          type: number
+          example: 8500.00
+        status:
+          type: string
+          enum:
+            [
+              "novo",
+              "aguardando_vistoria",
+              "vistoria_agendada",
+              "vistoria_realizada",
+              "laudo_pendente",
+              "laudo_concluido",
+              "pago",
+              "negado",
+            ]
+          example: "aguardando_vistoria"
+        data_abertura:
+          type: string
+          format: date-time
+        credenciado:
+          type: string
+          description: "Nome do credenciado vinculado (opcional)"
+          example: "Oficina Silva & Cia"
+          nullable: true
+        statusVistoria:
+          type: string
+          description: "Status da vistoria (opcional)"
+          enum: ["nao_iniciada", "em_progresso", "concluida"]
+          example: "nao_iniciada"
+          nullable: true
+        timeline:
+          type: array
+          items:
+            $ref: "#/components/schemas/SinistroTimelineEntry"
+
+    SinistroTimelineEntry:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        evento:
+          type: string
+          example: "Status alterado para 'Aguardando Vistoria'"
+        autor:
+          type: string
+          example: "Admin User"
+
+    SinistroMoveRequest:
+      type: object
+      required:
+        - status_destino
+      properties:
+        status_destino:
+          type: string
+          enum:
+            [
+              "novo",
+              "aguardando_vistoria",
+              "vistoria_agendada",
+              "vistoria_realizada",
+              "laudo_pendente",
+              "laudo_concluido",
+              "pago",
+              "negado",
+            ]
+          example: "vistoria_agendada"
+        observacao:
+          type: string
+          description: "Observação opcional sobre movementation"
+          example: "Agendada para próxima segunda"
+
+    # ============= VISTORIAS SCHEMAS =============
+    VistoriaCreateRequest:
+      type: object
+      required:
+        - sinistro_id
+        - credenciado
+        - data_vistoria
+      properties:
+        sinistro_id:
+          type: string
+          example: "SIN-2024-152"
+        credenciado:
+          type: string
+          example: "Oficina Silva & Cia"
+        data_vistoria:
+          type: string
+          format: date-time
+        observacoes:
+          type: string
+          example: "Vistoria agendada com sucesso"
+
+    VistoriaUpdateRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: ["nao_iniciada", "em_progresso", "concluida"]
+        laudo:
+          type: string
+          description: "Texto técnico do laudo"
+        pdfLaudoUrl:
+          type: string
+          format: uri
+          description: "URL do PDF do laudo"
+        observacoes:
+          type: string
+
+    Vistoria:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "VST-2024-001"
+        sinistro_id:
+          type: string
+          example: "SIN-2024-152"
+        veiculo:
+          type: string
+          example: "Honda Civic 2020"
+        placa:
+          type: string
+          example: "ABC-1234"
+        credenciado:
+          type: string
+          example: "Oficina Silva & Cia"
+        status:
+          type: string
+          enum: ["nao_iniciada", "em_progresso", "concluida"]
+          example: "em_progresso"
+        data_vistoria:
+          type: string
+          format: date-time
+        laudo:
+          type: string
+          nullable: true
+          description: "Texto técnico do laudo"
+          example: "O veículo apresenta dano em paralama frontal esquerdo..."
+        pdfLaudoUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: "URL do PDF do laudo"
+          example: "https://api.argos.local/files/laudos/VST-2024-001.pdf"
+        audios:
+          type: array
+          items:
+            $ref: "#/components/schemas/VistoriaAudio"
+        imagens:
+          type: array
+          items:
+            $ref: "#/components/schemas/VistoriaImagem"
+        observacoes:
+          type: string
+          nullable: true
+
+    VistoriaAudio:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "audio-001"
+        url:
+          type: string
+          format: uri
+          example: "https://api.argos.local/files/audios/VST-2024-001-audio-1.mp3"
+        duracao_segundos:
+          type: number
+          example: 45
+        transcricao:
+          type: string
+          example: "Vistoria realizada no local do sinistro, constatado dano em..."
+
+    VistoriaImagem:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "img-001"
+        url:
+          type: string
+          format: uri
+          example: "https://api.argos.local/files/imagens/VST-2024-001-img-1.jpg"
+        descricao:
+          type: string
+          example: "Dano frontal esquerdo"
+
+    VistoriaLinkRequest:
+      type: object
+      required:
+        - sinistro_id
+        - credenciado
+      properties:
+        sinistro_id:
+          type: string
+          example: "SIN-2024-152"
+        credenciado:
+          type: string
+          example: "Oficina Silva & Cia"
+        status:
+          type: string
+          enum: ["nao_iniciada", "em_progresso", "concluida"]
+          example: "nao_iniciada"
+
+    # ============= CADASTROS SCHEMAS =============
+    ClienteCreateRequest:
+      type: object
+      required:
+        - nome
+        - cpf_cnpj
+        - email
+      properties:
+        nome:
+          type: string
+          example: "João Silva"
+        cpf_cnpj:
+          type: string
+          example: "123.456.789-00"
+        email:
+          type: string
+          format: email
+          example: "joao@example.com"
+        telefone:
+          type: string
+          example: "(11) 9999-8888"
+        endereco:
+          type: string
+          example: "Rua A, 123"
+
+    Cliente:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "cli-001"
+        nome:
+          type: string
+        cpf_cnpj:
+          type: string
+        email:
+          type: string
+          format: email
+        telefone:
+          type: string
+          nullable: true
+        endereco:
+          type: string
+          nullable: true
+        data_cadastro:
+          type: string
+          format: date-time
+        sinistros_count:
+          type: number
+          example: 5
+
+    VeiculoCreateRequest:
+      type: object
+      required:
+        - cliente_id
+        - placa
+        - marca
+        - modelo
+        - ano
+      properties:
+        cliente_id:
+          type: string
+          example: "cli-001"
+        placa:
+          type: string
+          example: "ABC-1234"
+        marca:
+          type: string
+          example: "Honda"
+        modelo:
+          type: string
+          example: "Civic"
+        ano:
+          type: number
+          example: 2020
+        chassi:
+          type: string
+          example: "9BWHE21JX24000000"
+
+    Veiculo:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "vei-001"
+        cliente_id:
+          type: string
+        placa:
+          type: string
+        marca:
+          type: string
+        modelo:
+          type: string
+        ano:
+          type: number
+        chassi:
+          type: string
+          nullable: true
+        data_cadastro:
+          type: string
+          format: date-time
+
+    UsuarioCreateRequest:
+      type: object
+      required:
+        - nome
+        - email
+        - password
+        - role
+      properties:
+        nome:
+          type: string
+          example: "Maria Operator"
+        email:
+          type: string
+          format: email
+          example: "maria@argos.local"
+        password:
+          type: string
+          format: password
+          example: "senhaSegura123"
+        role:
+          type: string
+          enum: ["admin", "operator", "viewer"]
+          example: "operator"
+
+    UsuarioUpdateRequest:
+      type: object
+      properties:
+        nome:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: ["admin", "operator", "viewer"]
+
+    Usuario:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "usr-001"
+        nome:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: ["admin", "operator", "viewer"]
+        ativo:
+          type: boolean
+          example: true
+        data_cadastro:
+          type: string
+          format: date-time
+
+    # ============= CREDENCIADOS SCHEMAS =============
+    CredenciadoCreateRequest:
+      type: object
+      required:
+        - name
+        - cnpj
+        - email
+        - telefone
+      properties:
+        name:
+          type: string
+          example: "Oficina Silva & Cia"
+        cnpj:
+          type: string
+          example: "12.345.678/0001-90"
+        email:
+          type: string
+          format: email
+          example: "contato@oficina-silva.com"
+        telefone:
+          type: string
+          example: "(11) 3333-4444"
+
+    CredenciadoUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        cnpj:
+          type: string
+        email:
+          type: string
+          format: email
+        telefone:
+          type: string
+        status:
+          type: string
+          enum: ["ativo", "suspenso", "inativo"]
+
+    Credenciado:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "cred-001"
+        name:
+          type: string
+          example: "Oficina Silva & Cia"
+        cnpj:
+          type: string
+          example: "12.345.678/0001-90"
+        email:
+          type: string
+          format: email
+        telefone:
+          type: string
+        status:
+          type: string
+          enum: ["ativo", "suspenso", "inativo"]
+          example: "ativo"
+        quality_score:
+          type: number
+          description: "Pontuação de qualidade (0-100)"
+          example: 92.5
+        vistorias_realizadas:
+          type: number
+          example: 156
+        data_cadastro:
+          type: string
+          format: date-time
+
+    CredenciadoHistorico:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "hist-001"
+        credenciado_id:
+          type: string
+        data:
+          type: string
+          format: date-time
+        evento:
+          type: string
+          enum: ["status_mudanca", "qualidade_atualizada", "vistoria_concluida"]
+          example: "status_mudanca"
+        detalhes:
+          type: object
+          example:
+            status_anterior: "ativo"
+            status_novo: "suspenso"
+            motivo: "Falha em vistoria"
+
+    # ============= ALERTAS SCHEMAS =============
+    Alerta:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "alerta-001"
+        tipo:
+          type: string
+          enum:
+            [
+              "sinistro_criado",
+              "status_alterado",
+              "vistoria_marcada",
+              "documentacao",
+              "qualidade",
+              "sistema",
+            ]
+          example: "status_alterado"
+        categoria:
+          type: string
+          enum: ["critica", "alta", "media", "baixa"]
+          example: "alta"
+        titulo:
+          type: string
+          example: "Sinistro SIN-2024-152 aguardando vistoria"
+        descricao:
+          type: string
+          example: "O sinistro foi criado há 2 dias sem agendamento de vistoria"
+        lido:
+          type: boolean
+          example: false
+        timestamp:
+          type: string
+          format: date-time
+        referencia_id:
+          type: string
+          description: "ID do recurso relacionado (sinistro, vistoria, etc)"
+          example: "SIN-2024-152"
+
+paths:
+  # ============= AUTHENTICATION PATHS =============
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: "Autenticar usuário com email e senha"
+      description: "Realiza login e retorna tokens de acesso e refresh"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: "Login realizado com sucesso"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: "Renovar token de acesso"
+      description: "Usa refresh token para obter novo access token"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenRequest"
+      responses:
+        "200":
+          description: "Token renovado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tokens:
+                    $ref: "#/components/schemas/AuthTokens"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: "Fazer logout"
+      description: "Invalida sessão do usuário"
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        "200":
+          description: "Logout realizado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: "Obter dados do usuário autenticado"
+      description: "Retorna informações do usuário logado"
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: "Dados do usuário retornados com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: "#/components/schemas/AuthUser"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /perfil:
+    get:
+      tags:
+        - Perfil
+      summary: "Obter dados do meu perfil"
+      description: "Retorna dados do usuário autenticado para tela Meu Perfil"
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: "Perfil retornado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Perfil"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+    put:
+      tags:
+        - Perfil
+      summary: "Atualizar meu perfil"
+      description: "Atualiza dados do usuário autenticado na tela Meu Perfil"
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - nome
+                - email
+              properties:
+                nome:
+                  type: string
+                  example: "string"
+                email:
+                  type: string
+                  example: "string"
+                telefone:
+                  type: string
+                  example: "string"
+                avatarUrl:
+                  type: string
+                  format: uri
+                  example: "https://..."
+      responses:
+        "200":
+          description: "Perfil atualizado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Perfil"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /configuracoes/notificacoes:
+    get:
+      tags:
+        - Configurações
+      summary: "Obter configurações de notificações"
+      description: "Retorna preferências da tela Notificações"
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: "Configurações de notificações retornadas"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "ConfiguracoesNotificacoes"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+    put:
+      tags:
+        - Configurações
+      summary: "Atualizar configurações de notificações"
+      description: "Atualiza preferências da tela Notificações"
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: boolean
+                  example: true
+                push:
+                  type: boolean
+                  example: true
+                sms:
+                  type: boolean
+                  example: false
+                alertasCriticos:
+                  type: boolean
+                  example: true
+                resumoDiario:
+                  type: boolean
+                  example: false
+      responses:
+        "200":
+          description: "Configurações de notificações atualizadas"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "ConfiguracoesNotificacoes"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  # ============= DASHBOARD PATHS =============
+  /dashboard/kpis:
+    get:
+      tags:
+        - Dashboard
+      summary: "Obter KPI cards do dashboard"
+      description: "Retorna dados de KPIs (Total de Sinistros, Vistorias, etc)"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: periodo
+          in: query
+          schema:
+            type: string
+            enum: ["dia", "semana", "mes", "ano"]
+            default: "mes"
+          description: "Período para filtrar dados"
+      responses:
+        "200":
+          description: "KPIs retornado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  volumeAberturasHoje:
+                    type: number
+                    example: 147
+                  variacaoVolume:
+                    type: string
+                    example: "+12% vs. ontem"
+                  tempoMedioRegulacaoHoras:
+                    type: number
+                    example: 4.2
+                  metaSlaHoras:
+                    type: number
+                    example: 6
+                  riscoFraudePercentual:
+                    type: number
+                    example: 1.8
+                  alertasCriticosAbertos:
+                    type: number
+                    example: 5
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /dashboard/severity-chart:
+    get:
+      tags:
+        - Dashboard
+      summary: "Obter dados do gráfico de severidade"
+      description: "Retorna distribuição de sinistros por severidade"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: periodo
+          in: query
+          schema:
+            type: string
+            example: "30d"
+          description: "Período da série temporal (ex: 7d, 30d)"
+      responses:
+        "200":
+          description: "Dados de severidade retornados"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        dia:
+                          type: string
+                          example: "01"
+                        leve:
+                          type: number
+                          example: 45
+                        media:
+                          type: number
+                          example: 28
+                        grandeMonta:
+                          type: number
+                          example: 12
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /dashboard/alerts-feed:
+    get:
+      tags:
+        - Dashboard
+      summary: "Obter feed de alertas recentes"
+      description: "Retorna alertas do dashboard (últimos eventos)"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: number
+            default: 5
+          description: "Limite de alertas retornados"
+      responses:
+        "200":
+          description: "Feed de alertas retornado"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          example: "1"
+                        type:
+                          type: string
+                          example: "critical"
+                        title:
+                          type: string
+                          example: "Sinistro #1024"
+                        description:
+                          type: string
+                          example: "texto"
+                        time:
+                          type: string
+                          example: "2 min atras"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /dashboard/recent-claims:
+    get:
+      tags:
+        - Dashboard
+      summary: "Obter sinistros recentes"
+      description: "Retorna tabela de sinistros criados recentemente"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: number
+            default: 5
+          description: "Limite de sinistros retornados"
+      responses:
+        "200":
+          description: "Sinistros recentes retornados"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          example: "#1024"
+                        placa:
+                          type: string
+                          example: "ABC-1234"
+                        oficina:
+                          type: string
+                          example: "Oficina Central SP"
+                        severidade:
+                          type: string
+                          example: "Grande Monta"
+                        status:
+                          type: string
+                          example: "Em Analise"
+                        dataHora:
+                          type: string
+                          example: "Hoje, 14:32"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  # ============= SINISTROS PATHS =============
+  /sinistros:
+    get:
+      tags:
+        - Sinistros
+      summary: "Listar todos os sinistros"
+      description: "Retorna lista paginada de sinistros com filtros opcionais"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: number
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: number
+            default: 20
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: priority
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Lista de sinistros retornada"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: string
+                      example: "Sinistro"
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        type: number
+                      pageSize:
+                        type: number
+                      total:
+                        type: number
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+    post:
+      tags:
+        - Sinistros
+      summary: "Criar novo sinistro"
+      description: "Cria um novo sinistro no sistema"
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - vehicle
+                - plate
+                - workshop
+                - entryDate
+                - priority
+                - daysInStage
+              properties:
+                vehicle:
+                  type: string
+                  example: "string"
+                plate:
+                  type: string
+                  example: "string"
+                workshop:
+                  type: string
+                  example: "string"
+                entryDate:
+                  type: string
+                  format: date
+                  example: "2026-04-23"
+                priority:
+                  type: string
+                  enum: ["within-sla", "attention", "delayed"]
+                  example: "within-sla"
+                daysInStage:
+                  type: number
+                  example: 0
+      responses:
+        "201":
+          description: "Sinistro criado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Sinistro"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /sinistros/{id}:
+    get:
+      tags:
+        - Sinistros
+      summary: "Obter detalhes de um sinistro"
+      description: "Retorna informações completas de um sinistro específico"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "SIN-2024-152"
+      responses:
+        "200":
+          description: "Sinistro retornado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Sinistro"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+    put:
+      tags:
+        - Sinistros
+      summary: "Atualizar um sinistro"
+      description: "Modifica dados de um sinistro existente"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - vehicle
+                - plate
+                - workshop
+                - entryDate
+                - priority
+                - daysInStage
+                - credenciado
+                - statusVistoria
+              properties:
+                vehicle:
+                  type: string
+                  example: "string"
+                plate:
+                  type: string
+                  example: "string"
+                workshop:
+                  type: string
+                  example: "string"
+                entryDate:
+                  type: string
+                  format: date
+                  example: "2026-04-23"
+                priority:
+                  type: string
+                  enum: ["within-sla", "attention", "delayed"]
+                  example: "attention"
+                daysInStage:
+                  type: number
+                  example: 3
+                credenciado:
+                  type: string
+                  example: "string"
+                statusVistoria:
+                  type: string
+                  enum: ["pendente", "agendada", "realizada"]
+                  example: "agendada"
+      responses:
+        "200":
+          description: "Sinistro atualizado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Sinistro"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+    delete:
+      tags:
+        - Sinistros
+      summary: "Deletar um sinistro"
+      description: "Remove um sinistro do sistema (apenas admin)"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Sinistro deletado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /sinistros/{id}/stage:
+    patch:
+      tags:
+        - Sinistros
+      summary: "Move no pipeline (drag-and-drop)"
+      description: "Atualiza o estágio do sinistro no kanban"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  example: "validacao"
+      responses:
+        "200":
+          description: "Sinistro atualizado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Sinistro"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /sinistros/{id}/vistoria:
+    patch:
+      tags:
+        - Sinistros
+      summary: "Vincula/atualiza vistoria no sinistro"
+      description: "Atualiza credenciado e status da vistoria vinculada ao sinistro"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                credenciado:
+                  type: string
+                  example: "string"
+                statusVistoria:
+                  type: string
+                  enum: ["pendente", "agendada", "realizada"]
+                  example: "pendente"
+      responses:
+        "200":
+          description: "Sinistro atualizado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Sinistro"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /sinistros/{id}/timeline:
+    get:
+      tags:
+        - Sinistros
+      summary: "Obter timeline de um sinistro"
+      description: "Retorna histórico de eventos e alterações do sinistro"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Timeline retornada com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          example: "EVT-1"
+                        tipo:
+                          type: string
+                          example: "movimentacao"
+                        descricao:
+                          type: string
+                          example: "Movido para vistoria"
+                        dataHora:
+                          type: string
+                          format: date-time
+                          example: "2026-04-21T10:00:00Z"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  # ============= VISTORIAS PATHS =============
+  /vistorias:
+    get:
+      tags:
+        - Vistorias
+      summary: "Listar todas as vistorias"
+      description: "Retorna lista paginada de vistorias com filtros opcionais"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: number
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: number
+            default: 20
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Lista de vistorias retornada"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: string
+                      example: "Vistoria"
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        type: number
+                        example: 1
+                      pageSize:
+                        type: number
+                        example: 20
+                      total:
+                        type: number
+                        example: 40
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+    post:
+      tags:
+        - Vistorias
+      summary: "Criar nova vistoria"
+      description: "Cria uma nova vistoria vinculada a um sinistro"
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sinistroId
+                - credenciado
+                - status
+              properties:
+                sinistroId:
+                  type: string
+                  example: "CLM-127"
+                credenciado:
+                  type: string
+                  example: "Elite Motors"
+                status:
+                  type: string
+                  example: "agendada"
+      responses:
+        "201":
+          description: "Vistoria criada com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Vistoria"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /vistorias/{id}:
+    get:
+      tags:
+        - Vistorias
+      summary: "Obter detalhes de uma vistoria"
+      description: "Retorna informações completas de uma vistoria com laudo, áudios e imagens"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Vistoria retornada com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Vistoria"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+    put:
+      tags:
+        - Vistorias
+      summary: "Atualizar uma vistoria"
+      description: "Modifica dados de uma vistoria existente (status, laudo, etc)"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - local
+                - data
+                - hora
+                - status
+                - laudo
+                - pdfLaudoUrl
+                - descricaoArtigos
+                - observacoes
+              properties:
+                local:
+                  type: string
+                  example: "string"
+                data:
+                  type: string
+                  format: date
+                  example: "YYYY-MM-DD"
+                hora:
+                  type: string
+                  example: "HH:mm"
+                status:
+                  type: string
+                  example: "realizada"
+                laudo:
+                  type: string
+                  example: "string"
+                pdfLaudoUrl:
+                  type: string
+                  format: uri
+                  example: "https://..."
+                descricaoArtigos:
+                  type: string
+                  example: "string"
+                observacoes:
+                  type: string
+                  example: "string"
+      responses:
+        "200":
+          description: "Vistoria atualizada com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Vistoria"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+    delete:
+      tags:
+        - Vistorias
+      summary: "Deletar uma vistoria"
+      description: "Remove uma vistoria do sistema"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Vistoria deletada com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /vistorias/opcoes-vinculo:
+    get:
+      tags:
+        - Vistorias
+      summary: "Traz opções para modal Vincular Vistoria"
+      description: "Retorna sinistros e credenciados disponíveis para vínculo"
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: "Opções de vínculo retornadas com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sinistrosDisponiveis:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          example: "CLM-127"
+                        veiculo:
+                          type: string
+                          example: "Honda Civic"
+                        placa:
+                          type: string
+                          example: "ABC-1234"
+                        cliente:
+                          type: string
+                          example: "João Silva"
+                  credenciadosDisponiveis:
+                    type: array
+                    items:
+                      type: string
+                    example: ["Elite Motors", "AutoPrime Reparos"]
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  # ============= CADASTROS PATHS =============
+  /clientes:
+    get:
+      tags:
+        - Cadastros
+      summary: "Listar todos os clientes"
+      description: "Retorna lista paginada de clientes"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: number
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: number
+            default: 5
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: riscoHistorico
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Lista de clientes retornada"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: string
+                      example: "Cliente"
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        type: number
+                        example: 1
+                      pageSize:
+                        type: number
+                        example: 5
+                      total:
+                        type: number
+                        example: 10
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+    post:
+      tags:
+        - Cadastros
+      summary: "Criar novo cliente"
+      description: "Adiciona um novo cliente ao sistema"
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - nomeCompleto
+                - cpfCnpj
+                - telefone
+                - email
+                - riscoHistorico
+                - status
+              properties:
+                nomeCompleto:
+                  type: string
+                  example: "string"
+                cpfCnpj:
+                  type: string
+                  example: "string"
+                telefone:
+                  type: string
+                  example: "string"
+                email:
+                  type: string
+                  example: "string"
+                riscoHistorico:
+                  type: string
+                  example: "baixo"
+                status:
+                  type: string
+                  example: "ativo"
+      responses:
+        "201":
+          description: "Cliente criado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Cliente"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /clientes/{id}:
+    get:
+      tags:
+        - Cadastros
+      summary: "Obter detalhes de um cliente"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Cliente retornado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Cliente"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+    put:
+      tags:
+        - Cadastros
+      summary: "Atualizar dados de um cliente"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - nomeCompleto
+                - cpfCnpj
+                - telefone
+                - email
+                - riscoHistorico
+                - status
+              properties:
+                nomeCompleto:
+                  type: string
+                  example: "string"
+                cpfCnpj:
+                  type: string
+                  example: "string"
+                telefone:
+                  type: string
+                  example: "string"
+                email:
+                  type: string
+                  example: "string"
+                riscoHistorico:
+                  type: string
+                  example: "baixo"
+                status:
+                  type: string
+                  example: "ativo"
+      responses:
+        "200":
+          description: "Cliente atualizado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Cliente"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+    delete:
+      tags:
+        - Cadastros
+      summary: "Deletar cliente"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Cliente deletado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: string
+                    example: "true"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /veiculos:
+    get:
+      tags:
+        - Cadastros
+      summary: "Listar todos os veículos"
+      description: "Retorna lista paginada de veículos com filtros"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: number
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: number
+            default: 5
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: tipoCobertura
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Lista de veículos retornada"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: string
+                      example: "Veiculo"
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        type: number
+                        example: 1
+                      pageSize:
+                        type: number
+                        example: 5
+                      total:
+                        type: number
+                        example: 10
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+    post:
+      tags:
+        - Cadastros
+      summary: "Criar novo veículo"
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - placa
+                - modelo
+                - anoFabricacao
+                - proprietario
+                - tipoCobertura
+                - status
+              properties:
+                placa:
+                  type: string
+                  example: "string"
+                modelo:
+                  type: string
+                  example: "string"
+                anoFabricacao:
+                  type: number
+                  example: 2024
+                proprietario:
+                  type: string
+                  example: "string"
+                tipoCobertura:
+                  type: string
+                  example: "basica"
+                status:
+                  type: string
+                  example: "ativo"
+      responses:
+        "201":
+          description: "Veículo criado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Veiculo"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /veiculos/{id}:
+    get:
+      tags:
+        - Cadastros
+      summary: "Obter detalhes de um veículo"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Veículo retornado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Veiculo"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+    put:
+      tags:
+        - Cadastros
+      summary: "Atualizar dados de um veículo"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - placa
+                - modelo
+                - anoFabricacao
+                - proprietario
+                - tipoCobertura
+                - status
+              properties:
+                placa:
+                  type: string
+                  example: "string"
+                modelo:
+                  type: string
+                  example: "string"
+                anoFabricacao:
+                  type: number
+                  example: 2024
+                proprietario:
+                  type: string
+                  example: "string"
+                tipoCobertura:
+                  type: string
+                  example: "basica"
+                status:
+                  type: string
+                  example: "ativo"
+      responses:
+        "200":
+          description: "Veículo atualizado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Veiculo"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+    delete:
+      tags:
+        - Cadastros
+      summary: "Deletar veículo"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Veículo deletado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /usuarios:
+    get:
+      tags:
+        - Cadastros
+      summary: "Listar todos os usuários"
+      description: "Retorna lista de usuários do sistema (apenas admin)"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: number
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: number
+            default: 5
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: nivelAcesso
+          in: query
+          schema:
+            type: string
+        - name: departamento
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Lista de usuários retornada"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: string
+                      example: "UsuarioInterno"
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        type: number
+                        example: 1
+                      pageSize:
+                        type: number
+                        example: 5
+                      total:
+                        type: number
+                        example: 10
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+    post:
+      tags:
+        - Cadastros
+      summary: "Criar novo usuário"
+      description: "Adiciona novo usuário ao sistema (apenas admin)"
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - nome
+                - email
+                - cargo
+                - departamento
+                - nivelAcesso
+                - status
+              properties:
+                nome:
+                  type: string
+                  example: "string"
+                email:
+                  type: string
+                  example: "string"
+                cargo:
+                  type: string
+                  example: "string"
+                departamento:
+                  type: string
+                  example: "string"
+                nivelAcesso:
+                  type: string
+                  example: "analista"
+                status:
+                  type: string
+                  example: "ativo"
+      responses:
+        "201":
+          description: "Usuário criado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "UsuarioInterno"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /usuarios/{id}:
+    get:
+      tags:
+        - Cadastros
+      summary: "Obter detalhes de um usuário"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Usuário retornado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "UsuarioInterno"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+    put:
+      tags:
+        - Cadastros
+      summary: "Atualizar dados de um usuário"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - nome
+                - email
+                - cargo
+                - departamento
+                - nivelAcesso
+                - status
+              properties:
+                nome:
+                  type: string
+                  example: "string"
+                email:
+                  type: string
+                  example: "string"
+                cargo:
+                  type: string
+                  example: "string"
+                departamento:
+                  type: string
+                  example: "string"
+                nivelAcesso:
+                  type: string
+                  example: "analista"
+                status:
+                  type: string
+                  example: "ativo"
+      responses:
+        "200":
+          description: "Usuário atualizado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "UsuarioInterno"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+    delete:
+      tags:
+        - Cadastros
+      summary: "Deletar usuário"
+      description: "Remove usuário do sistema (apenas admin)"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Usuário deletado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  # ============= CREDENCIADOS PATHS =============
+  /credenciados:
+    get:
+      tags:
+        - Credenciados
+      summary: "Listar todos os credenciados (oficinas)"
+      description: "Retorna lista de oficinas credenciadas com filtros"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: number
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: number
+            default: 12
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: city
+          in: query
+          schema:
+            type: string
+        - name: specialty
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Lista de credenciados retornada"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: string
+                      example: "Credenciado"
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        type: number
+                        example: 1
+                      pageSize:
+                        type: number
+                        example: 12
+                      total:
+                        type: number
+                        example: 47
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+    post:
+      tags:
+        - Credenciados
+      summary: "Criar novo credenciado"
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - city
+                - specialty
+                - phone
+                - email
+                - score
+                - slaAvg
+                - status
+              properties:
+                name:
+                  type: string
+                  example: "string"
+                city:
+                  type: string
+                  example: "Araras-SP"
+                specialty:
+                  type: string
+                  example: "Mecanica Geral"
+                phone:
+                  type: string
+                  example: "string"
+                email:
+                  type: string
+                  example: "string"
+                score:
+                  type: number
+                  example: 4.0
+                slaAvg:
+                  type: string
+                  example: "3.0 dias"
+                status:
+                  type: string
+                  example: "ativo"
+      responses:
+        "201":
+          description: "Credenciado criado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Credenciado"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /credenciados/{id}:
+    get:
+      tags:
+        - Credenciados
+      summary: "Obter detalhes de um credenciado"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Credenciado retornado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Credenciado"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+    put:
+      tags:
+        - Credenciados
+      summary: "Atualizar dados de um credenciado"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - city
+                - specialty
+                - phone
+                - email
+                - score
+                - slaAvg
+                - status
+              properties:
+                name:
+                  type: string
+                  example: "string"
+                city:
+                  type: string
+                  example: "Araras-SP"
+                specialty:
+                  type: string
+                  example: "Mecanica Geral"
+                phone:
+                  type: string
+                  example: "string"
+                email:
+                  type: string
+                  example: "string"
+                score:
+                  type: number
+                  example: 4.0
+                slaAvg:
+                  type: string
+                  example: "3.0 dias"
+                status:
+                  type: string
+                  example: "ativo"
+      responses:
+        "200":
+          description: "Credenciado atualizado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Credenciado"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+    delete:
+      tags:
+        - Credenciados
+      summary: "Deletar credenciado"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Credenciado deletado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /credenciados/{id}/status:
+    patch:
+      tags:
+        - Credenciados
+      summary: "Alterar status de um credenciado"
+      description: "Muda status de ativo/suspenso/inativo com motivo"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  example: "suspenso"
+      responses:
+        "200":
+          description: "Status alterado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Credenciado"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /credenciados/{id}/historico-sinistros:
+    get:
+      tags:
+        - Credenciados
+      summary: "Histórico no modal Histórico de Sinistro"
+      description: "Retorna histórico de sinistros vinculados ao credenciado"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Histórico retornado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: string
+                      example: "CredenciadoHistoricoItem"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /credenciados/filtros:
+    get:
+      tags:
+        - Credenciados
+      summary: "Opções dinâmicas de cidade/especialidade"
+      description: "Retorna filtros dinâmicos para tela de credenciados"
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: "Filtros retornados com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cities:
+                    type: array
+                    items:
+                      type: string
+                    example: ["Todas", "Araras-SP"]
+                  specialties:
+                    type: array
+                    items:
+                      type: string
+                    example: ["Todas", "Mecanica Geral"]
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  # ============= ALERTAS PATHS =============
+  /alertas:
+    get:
+      tags:
+        - Alertas
+      summary: "Listar alertas do sistema"
+      description: "Retorna lista de alertas com filtros por categoria e status"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: number
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: number
+            default: 20
+        - name: tipo
+          in: query
+          schema:
+            type: string
+            enum: ["critico", "sla", "sistema", "lido"]
+        - name: lido
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: "Lista de alertas retornada"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: string
+                      example: "Alerta"
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        type: number
+                        example: 1
+                      pageSize:
+                        type: number
+                        example: 20
+                      total:
+                        type: number
+                        example: 12
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /alertas/{id}/marcar-lido:
+    patch:
+      tags:
+        - Alertas
+      summary: "Marcar alerta como lido"
+      description: "Marca um alerta específico como lido"
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                lido:
+                  type: boolean
+                  example: true
+      responses:
+        "200":
+          description: "Alerta marcado como lido"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Alerta"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /alertas/marcar-lidos:
+    patch:
+      tags:
+        - Alertas
+      summary: "Marcar lote como lido"
+      description: "Marca múltiplos alertas como lidos"
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - ids
+              properties:
+                ids:
+                  type: array
+                  items:
+                    type: string
+                  example: ["ALT-001", "ALT-002"]
+      responses:
+        "200":
+          description: "Lote atualizado com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated:
+                    type: number
+                    example: 2
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /alertas/counts:
+    get:
+      tags:
+        - Alertas
+      summary: "Contadores das abas de alertas"
+      description: "Retorna contadores de crítico, SLA, sistema e lidos"
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: "Contadores retornados com sucesso"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  critico:
+                    type: number
+                    example: 2
+                  sla:
+                    type: number
+                    example: 3
+                  sistema:
+                    type: number
+                    example: 3
+                  lidos:
+                    type: number
+                    example: 4
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+security:
+  - BearerAuth: []
