@@ -40,6 +40,12 @@ export interface ClaimCard {
   priority: "within-sla" | "attention" | "delayed";
   daysInStage: number;
   status: StageId;
+  // Vistoria fields
+  credenciado?: string;
+  localVistoria?: string;
+  dataVistoria?: string;
+  horaVistoria?: string;
+  statusVistoria?: "agendada" | "realizada" | "pendente";
 }
 
 export interface KanbanStage {

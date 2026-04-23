@@ -13,6 +13,7 @@ import {
   LogOut,
   Eye,
   X,
+  Stethoscope,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,11 @@ const navigationItems = [
     name: "Sinistros",
     href: "/orquestracao",
     icon: Workflow,
+  },
+  {
+    name: "Vistorias",
+    href: "/vistoria",
+    icon: Stethoscope,
   },
   {
     name: "Cadastros",

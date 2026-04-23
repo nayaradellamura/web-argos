@@ -31,6 +31,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -110,6 +120,7 @@ function ClaimCardComponent({
   const PriorityIcon = priorityConfig.icon;
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [formState, setFormState] = useState({
     vehicle: card.vehicle,
     plate: card.plate,
@@ -117,6 +128,8 @@ function ClaimCardComponent({
     entryDate: card.entryDate,
     priority: card.priority,
     daysInStage: String(card.daysInStage),
+    credenciado: card.credenciado || "",
+    statusVistoria: card.statusVistoria || "pendente",
   });
 
   const formattedStatus = useMemo(
@@ -140,7 +153,10 @@ function ClaimCardComponent({
       entryDate: card.entryDate,
       priority: card.priority,
       daysInStage: String(card.daysInStage),
+      credenciado: card.credenciado || "",
+      statusVistoria: card.statusVistoria || "pendente",
     });
+    setIsDetailsOpen(false);
     setIsEditOpen(true);
   };
 
@@ -154,6 +170,11 @@ function ClaimCardComponent({
       entryDate: formState.entryDate,
       priority: formState.priority,
       daysInStage: Number.parseInt(formState.daysInStage || "0", 10),
+      credenciado: formState.credenciado,
+      localVistoria: formState.localVistoria,
+      dataVistoria: formState.dataVistoria,
+      horaVistoria: formState.horaVistoria,
+      statusVistoria: formState.statusVistoria as "agendada" | "realizada" | "pendente",
     });
 
     setIsEditOpen(false);
@@ -202,13 +223,21 @@ function ClaimCardComponent({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleOpenEdit}>
+                <DropdownMenuItem
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleOpenEdit();
+                  }}
+                >
                   <Pencil className="mr-2 h-4 w-4" />
                   Editar
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   variant="destructive"
-                  onClick={() => onDeleteCard(stageId, card.id)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setIsDeleteConfirmOpen(true);
+                  }}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   Apagar
@@ -294,6 +323,35 @@ function ClaimCardComponent({
                 </p>
               </div>
             </div>
+
+            {card.credenciado && (
+              <div className="space-y-2 border-t pt-4">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Credenciado:</span>
+                  <span className="font-medium">{card.credenciado}</span>
+                </div>
+                {card.statusVistoria && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Status Vistoria:</span>
+                    <Badge
+                      variant={
+                        card.statusVistoria === "realizada"
+                          ? "default"
+                          : card.statusVistoria === "agendada"
+                            ? "secondary"
+                            : "outline"
+                      }
+                    >
+                      {card.statusVistoria === "realizada"
+                        ? "Realizada"
+                        : card.statusVistoria === "agendada"
+                          ? "Agendada"
+                          : "Pendente"}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -407,6 +465,53 @@ function ClaimCardComponent({
               </div>
             </div>
 
+            {/* Seção de Vistoria */}
+            <div className="border-t pt-6">
+              <h3 className="mb-4 text-sm font-semibold text-foreground">Vistoria</h3>
+              
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor={`credenciado-${card.id}`}>Credenciado</Label>
+                  <Select
+                    value={formState.credenciado}
+                    onValueChange={(value) =>
+                      setFormState((prev) => ({ ...prev, credenciado: value }))
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione um credenciado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Auto Center Premium">Auto Center Premium</SelectItem>
+                      <SelectItem value="Oficina Central">Oficina Central</SelectItem>
+                      <SelectItem value="Repair Masters">Repair Masters</SelectItem>
+                      <SelectItem value="Express Auto">Express Auto</SelectItem>
+                      <SelectItem value="Técnicos Associados">Técnicos Associados</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor={`statusVistoria-${card.id}`}>Status</Label>
+                  <Select
+                    value={formState.statusVistoria}
+                    onValueChange={(value) =>
+                      setFormState((prev) => ({ ...prev, statusVistoria: value }))
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione o status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pendente">Pendente</SelectItem>
+                      <SelectItem value="agendada">Agendada</SelectItem>
+                      <SelectItem value="realizada">Realizada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
             <DialogFooter>
               <Button
                 type="button"
@@ -420,6 +525,29 @@ function ClaimCardComponent({
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja apagar o sinistro <strong>{card.id}</strong>? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                onDeleteCard(stageId, card.id);
+                setIsDeleteConfirmOpen(false);
+              }}
+            >
+              Apagar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
