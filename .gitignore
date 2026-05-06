@@ -4,13 +4,107 @@ __v0_devtools.tsx
 __v0_jsx-dev-runtime.ts
 .snowflake/
 .v0-trash/
-.vercel/
 next.user-config.*
 
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Next.js / Vercel
+.next/
+out/
+.vercel/
+.turbo/
+
 # Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 .env*.local
 
-# Common ignores
-node_modules
-.next/
+# Firebase Admin SDK secrets
+serviceAccountKey.json
+firebase-admin-key.json
+*service-account*.json
+*firebase-admin*.json
+*firebase-service-account*.json
+
+# Firebase local/emulators/debug
+.firebase/
+firebase-debug.log
+firestore-debug.log
+database-debug.log
+ui-debug.log
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build / cache
+dist/
+build/
+coverage/
+.cache/
+*.tsbuildinfo
+
+# OS files
 .DS_Store
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# Backups gerados pelos scripts
+_backup_atualizacao_*/
+
+# AI / agent tool folders
+.adal/
+.agents/
+.aider-desk/
+.augment/
+.bob/
+.claude/
+.codeartsdoer/
+.codebuddy/
+.codemaker/
+.codestudio/
+.commandcode/
+.continue/
+.cortex/
+.crush/
+.devin/
+.factory/
+.forge/
+.goose/
+.iflow/
+.junie/
+.kilocode/
+.kiro/
+.kode/
+.mcpjam/
+.mux/
+.neovate/
+.openhands/
+.pi/
+.pochi/
+.qoder/
+.qwen/
+.roo/
+.rovodev/
+.tabnine/
+.trae/
+.vibe/
+.windsurf/
+.zencoder/
+
+# Local generated helpers
+skills/
+skills-lock.json
