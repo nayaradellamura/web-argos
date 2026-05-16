@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   MoreHorizontal,
   Eye,
@@ -56,45 +56,128 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  type Cliente,
-  getClientes,
-  updateCliente,
-  deleteCliente,
-} from "@/lib/services/registros";
 
-function getRiscoBadge(risco: string) {
-  const map: Record<string, { label: string; className: string }> = {
-    baixo: { label: "Baixo", className: "bg-emerald-100 text-emerald-700" },
-    Baixo: { label: "Baixo", className: "bg-emerald-100 text-emerald-700" },
-    medio: { label: "Médio", className: "bg-amber-100 text-amber-700" },
-    Médio: { label: "Médio", className: "bg-amber-100 text-amber-700" },
-    alto: { label: "Alto", className: "bg-red-100 text-red-700" },
-    Alto: { label: "Alto", className: "bg-red-100 text-red-700" },
-  };
-  return (
-    map[risco] ?? { label: risco, className: "bg-muted text-muted-foreground" }
-  );
+interface Cliente {
+  id: string;
+  nomeCompleto: string;
+  cpfCnpj: string;
+  email: string;
+  riscoHistorico: "baixo" | "medio" | "alto";
+  status: "ativo" | "bloqueado";
 }
 
-function getStatusBadge(status: string) {
-  const map: Record<string, { label: string; className: string }> = {
+const clientesData: Cliente[] = [
+  {
+    id: "CLI-001",
+    nomeCompleto: "João Silva Santos",
+    cpfCnpj: "123.456.789-00",
+    email: "joao.silva@email.com",
+    riscoHistorico: "baixo",
+    status: "ativo",
+  },
+  {
+    id: "CLI-002",
+    nomeCompleto: "Maria Oliveira Costa",
+    cpfCnpj: "987.654.321-00",
+    email: "maria.oliveira@email.com",
+    riscoHistorico: "medio",
+    status: "ativo",
+  },
+  {
+    id: "CLI-003",
+    nomeCompleto: "Auto Peças Ltda",
+    cpfCnpj: "12.345.678/0001-90",
+    email: "contato@autopecas.com.br",
+    riscoHistorico: "alto",
+    status: "bloqueado",
+  },
+  {
+    id: "CLI-004",
+    nomeCompleto: "Carlos Eduardo Mendes",
+    cpfCnpj: "456.789.123-00",
+    email: "carlos.mendes@email.com",
+    riscoHistorico: "baixo",
+    status: "ativo",
+  },
+  {
+    id: "CLI-005",
+    nomeCompleto: "Ana Paula Ferreira",
+    cpfCnpj: "321.654.987-00",
+    email: "ana.ferreira@email.com",
+    riscoHistorico: "medio",
+    status: "ativo",
+  },
+  {
+    id: "CLI-006",
+    nomeCompleto: "Transportadora Norte Sul SA",
+    cpfCnpj: "98.765.432/0001-10",
+    email: "comercial@nortesul.com.br",
+    riscoHistorico: "baixo",
+    status: "ativo",
+  },
+  {
+    id: "CLI-007",
+    nomeCompleto: "Roberto Almeida Junior",
+    cpfCnpj: "654.321.987-00",
+    email: "roberto.junior@email.com",
+    riscoHistorico: "alto",
+    status: "bloqueado",
+  },
+  {
+    id: "CLI-008",
+    nomeCompleto: "Patricia Lima Souza",
+    cpfCnpj: "789.123.456-00",
+    email: "patricia.souza@email.com",
+    riscoHistorico: "baixo",
+    status: "ativo",
+  },
+  {
+    id: "CLI-009",
+    nomeCompleto: "Mecânica Express Ltda",
+    cpfCnpj: "11.222.333/0001-44",
+    email: "atendimento@mecanicaexpress.com",
+    riscoHistorico: "medio",
+    status: "ativo",
+  },
+  {
+    id: "CLI-010",
+    nomeCompleto: "Fernando Costa Neto",
+    cpfCnpj: "147.258.369-00",
+    email: "fernando.neto@email.com",
+    riscoHistorico: "baixo",
+    status: "ativo",
+  },
+];
+
+function getRiscoBadge(risco: Cliente["riscoHistorico"]) {
+  const config = {
+    baixo: {
+      label: "Baixo",
+      className:
+        "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    },
+    medio: {
+      label: "Médio",
+      className:
+        "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+    },
+    alto: {
+      label: "Alto",
+      className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+    },
+  };
+  return config[risco];
+}
+
+function getStatusBadge(status: Cliente["status"]) {
+  const config = {
     ativo: { label: "Ativo", className: "bg-primary/10 text-primary" },
-    Ativo: { label: "Ativo", className: "bg-primary/10 text-primary" },
     bloqueado: {
       label: "Bloqueado",
       className: "bg-muted text-muted-foreground",
     },
-    inativo: { label: "Inativo", className: "bg-muted text-muted-foreground" },
-    Inativo: { label: "Inativo", className: "bg-muted text-muted-foreground" },
   };
-  return (
-    map[status] ?? {
-      label: status,
-      className: "bg-muted text-muted-foreground",
-    }
-  );
+  return config[status];
 }
 
 interface ClientesTableProps {
@@ -102,30 +185,24 @@ interface ClientesTableProps {
 }
 
 export function ClientesTable({ searchQuery }: ClientesTableProps) {
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [clientes, setClientes] = useState(clientesData);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [dialogMode, setDialogMode] = useState<"view" | "edit" | null>(null);
   const [clienteToDelete, setClienteToDelete] = useState<Cliente | null>(null);
   const [editForm, setEditForm] = useState<Cliente | null>(null);
-  const [saving, setSaving] = useState(false);
   const itemsPerPage = 5;
-
-  useEffect(() => {
-    getClientes()
-      .then(setClientes)
-      .finally(() => setLoading(false));
-  }, []);
 
   const filteredData = useMemo(
     () =>
       clientes.filter(
-        (c) =>
-          c.nomeCompleto?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          c.cpfCnpj?.includes(searchQuery) ||
-          c.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          c.id?.toLowerCase().includes(searchQuery.toLowerCase()),
+        (cliente) =>
+          cliente.nomeCompleto
+            .toLowerCase()
+            .includes(searchQuery.toLowerCase()) ||
+          cliente.cpfCnpj.includes(searchQuery) ||
+          cliente.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          cliente.id.toLowerCase().includes(searchQuery.toLowerCase()),
       ),
     [clientes, searchQuery],
   );
@@ -138,55 +215,48 @@ export function ClientesTable({ searchQuery }: ClientesTableProps) {
     startIndex + itemsPerPage,
   );
 
-  const openViewDialog = (c: Cliente) => {
-    setSelectedCliente(c);
-    setEditForm(null);
+  const openViewDialog = (cliente: Cliente) => {
+    setSelectedCliente(cliente);
     setDialogMode("view");
+    setEditForm(null);
   };
-  const openEditDialog = (c: Cliente) => {
-    setSelectedCliente(c);
-    setEditForm(c);
+
+  const openEditDialog = (cliente: Cliente) => {
+    setSelectedCliente(cliente);
+    setEditForm(cliente);
     setDialogMode("edit");
   };
+
   const closeDialog = () => {
     setSelectedCliente(null);
     setEditForm(null);
     setDialogMode(null);
   };
 
-  const handleSaveEdit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSaveEdit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
     if (!editForm) return;
-    setSaving(true);
-    try {
-      await updateCliente(editForm.id, editForm);
-      setClientes((prev) =>
-        prev.map((c) => (c.id === editForm.id ? editForm : c)),
-      );
-      closeDialog();
-    } finally {
-      setSaving(false);
-    }
+
+    setClientes((current) =>
+      current.map((cliente) =>
+        cliente.id === editForm.id ? editForm : cliente,
+      ),
+    );
+
+    closeDialog();
   };
 
-  const handleDelete = async () => {
+  const handleDeleteCliente = () => {
     if (!clienteToDelete) return;
-    await deleteCliente(clienteToDelete.id);
-    setClientes((prev) => prev.filter((c) => c.id !== clienteToDelete.id));
+
+    setClientes((current) =>
+      current.filter((cliente) => cliente.id !== clienteToDelete.id),
+    );
     setClienteToDelete(null);
   };
 
   const dialogCliente = dialogMode === "edit" ? editForm : selectedCliente;
-
-  if (loading) {
-    return (
-      <Card className="border-0 shadow-sm p-4 space-y-3">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="h-10 w-full rounded-lg bg-muted/70" />
-        ))}
-      </Card>
-    );
-  }
 
   return (
     <>
@@ -201,13 +271,14 @@ export function ClientesTable({ searchQuery }: ClientesTableProps) {
                 <TableHead className="font-semibold">E-mail</TableHead>
                 <TableHead className="font-semibold">Risco Histórico</TableHead>
                 <TableHead className="font-semibold">Status</TableHead>
-                <TableHead className="w-12" />
+                <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {paginatedData.map((cliente) => {
-                const risco = getRiscoBadge(cliente.riscoHistorico);
-                const status = getStatusBadge(cliente.status);
+                const riscoBadge = getRiscoBadge(cliente.riscoHistorico);
+                const statusBadge = getStatusBadge(cliente.status);
+
                 return (
                   <TableRow key={cliente.id}>
                     <TableCell className="font-medium text-primary">
@@ -223,13 +294,19 @@ export function ClientesTable({ searchQuery }: ClientesTableProps) {
                       {cliente.email}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary" className={risco.className}>
-                        {risco.label}
+                      <Badge
+                        variant="secondary"
+                        className={riscoBadge.className}
+                      >
+                        {riscoBadge.label}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary" className={status.className}>
-                        {status.label}
+                      <Badge
+                        variant="secondary"
+                        className={statusBadge.className}
+                      >
+                        {statusBadge.label}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -241,25 +318,29 @@ export function ClientesTable({ searchQuery }: ClientesTableProps) {
                             className="h-8 w-8"
                           >
                             <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Abrir menu</span>
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
                             onClick={() => openViewDialog(cliente)}
                           >
-                            <Eye className="mr-2 h-4 w-4" /> Visualizar
+                            <Eye className="mr-2 h-4 w-4" />
+                            Visualizar
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => openEditDialog(cliente)}
                           >
-                            <Pencil className="mr-2 h-4 w-4" /> Editar
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Editar
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             variant="destructive"
                             onClick={() => setClienteToDelete(cliente)}
                           >
-                            <Trash2 className="mr-2 h-4 w-4" /> Apagar
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Apagar
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -283,9 +364,10 @@ export function ClientesTable({ searchQuery }: ClientesTableProps) {
               size="icon"
               className="h-8 w-8"
               onClick={() => setCurrentPage(1)}
-              disabled={safeCurrentPage === 1}
+              disabled={currentPage === 1}
             >
               <ChevronsLeft className="h-4 w-4" />
+              <span className="sr-only">Primeira página</span>
             </Button>
             <Button
               variant="outline"
@@ -295,6 +377,7 @@ export function ClientesTable({ searchQuery }: ClientesTableProps) {
               disabled={safeCurrentPage === 1}
             >
               <ChevronLeft className="h-4 w-4" />
+              <span className="sr-only">Página anterior</span>
             </Button>
             <span className="px-3 text-sm text-muted-foreground">
               Página {safeCurrentPage} de {totalPages}
@@ -307,6 +390,7 @@ export function ClientesTable({ searchQuery }: ClientesTableProps) {
               disabled={safeCurrentPage === totalPages}
             >
               <ChevronRight className="h-4 w-4" />
+              <span className="sr-only">Próxima página</span>
             </Button>
             <Button
               variant="outline"
@@ -316,6 +400,7 @@ export function ClientesTable({ searchQuery }: ClientesTableProps) {
               disabled={safeCurrentPage === totalPages}
             >
               <ChevronsRight className="h-4 w-4" />
+              <span className="sr-only">Última página</span>
             </Button>
           </div>
         </div>
@@ -332,101 +417,114 @@ export function ClientesTable({ searchQuery }: ClientesTableProps) {
             </DialogTitle>
             <DialogDescription>
               {dialogMode === "edit"
-                ? "Atualize os dados cadastrais do cliente."
-                : "Informações completas do cliente."}
+                ? "Atualize os dados cadastrais do cliente selecionado."
+                : "Confira as informações completas do cliente selecionado."}
             </DialogDescription>
           </DialogHeader>
+
           {dialogCliente && (
             <form onSubmit={handleSaveEdit} className="space-y-4">
               <div className="space-y-2">
-                <Label>ID</Label>
-                <Input value={dialogCliente.id} disabled />
+                <Label htmlFor="cliente-id">ID</Label>
+                <Input id="cliente-id" value={dialogCliente.id} disabled />
               </div>
+
               <div className="space-y-2">
-                <Label>Nome completo</Label>
+                <Label htmlFor="cliente-nome-completo">Nome completo</Label>
                 <Input
+                  id="cliente-nome-completo"
                   value={dialogCliente.nomeCompleto}
                   disabled={dialogMode === "view"}
-                  onChange={(e) =>
-                    setEditForm((p) =>
-                      p ? { ...p, nomeCompleto: e.target.value } : p,
+                  onChange={(event) =>
+                    setEditForm((prev) =>
+                      prev
+                        ? { ...prev, nomeCompleto: event.target.value }
+                        : prev,
                     )
                   }
                 />
               </div>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>CPF/CNPJ</Label>
+                  <Label htmlFor="cliente-cpfcnpj">CPF/CNPJ</Label>
                   <Input
+                    id="cliente-cpfcnpj"
                     value={dialogCliente.cpfCnpj}
                     disabled={dialogMode === "view"}
-                    onChange={(e) =>
-                      setEditForm((p) =>
-                        p ? { ...p, cpfCnpj: e.target.value } : p,
+                    onChange={(event) =>
+                      setEditForm((prev) =>
+                        prev ? { ...prev, cpfCnpj: event.target.value } : prev,
                       )
                     }
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>E-mail</Label>
+                  <Label htmlFor="cliente-email">E-mail</Label>
                   <Input
+                    id="cliente-email"
                     value={dialogCliente.email}
                     disabled={dialogMode === "view"}
-                    onChange={(e) =>
-                      setEditForm((p) =>
-                        p ? { ...p, email: e.target.value } : p,
+                    onChange={(event) =>
+                      setEditForm((prev) =>
+                        prev ? { ...prev, email: event.target.value } : prev,
                       )
                     }
                   />
                 </div>
               </div>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Risco histórico</Label>
                   <Select
                     value={dialogCliente.riscoHistorico}
                     disabled={dialogMode === "view"}
-                    onValueChange={(v) =>
-                      setEditForm((p) => (p ? { ...p, riscoHistorico: v } : p))
+                    onValueChange={(value: Cliente["riscoHistorico"]) =>
+                      setEditForm((prev) =>
+                        prev ? { ...prev, riscoHistorico: value } : prev,
+                      )
                     }
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue />
+                      <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Baixo">Baixo</SelectItem>
-                      <SelectItem value="Médio">Médio</SelectItem>
-                      <SelectItem value="Alto">Alto</SelectItem>
+                      <SelectItem value="baixo">Baixo</SelectItem>
+                      <SelectItem value="medio">Médio</SelectItem>
+                      <SelectItem value="alto">Alto</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+
                 <div className="space-y-2">
                   <Label>Status</Label>
                   <Select
                     value={dialogCliente.status}
                     disabled={dialogMode === "view"}
-                    onValueChange={(v) =>
-                      setEditForm((p) => (p ? { ...p, status: v } : p))
+                    onValueChange={(value: Cliente["status"]) =>
+                      setEditForm((prev) =>
+                        prev ? { ...prev, status: value } : prev,
+                      )
                     }
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue />
+                      <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Ativo">Ativo</SelectItem>
-                      <SelectItem value="Inativo">Inativo</SelectItem>
+                      <SelectItem value="ativo">Ativo</SelectItem>
+                      <SelectItem value="bloqueado">Bloqueado</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
+
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={closeDialog}>
                   Fechar
                 </Button>
                 {dialogMode === "edit" && (
-                  <Button type="submit" disabled={saving}>
-                    {saving ? "Salvando..." : "Salvar Alterações"}
-                  </Button>
+                  <Button type="submit">Salvar Alterações</Button>
                 )}
               </DialogFooter>
             </form>
@@ -443,15 +541,15 @@ export function ClientesTable({ searchQuery }: ClientesTableProps) {
             <AlertDialogTitle>Apagar cliente?</AlertDialogTitle>
             <AlertDialogDescription>
               {clienteToDelete
-                ? `Esta ação removerá ${clienteToDelete.nomeCompleto} permanentemente do banco de dados.`
-                : ""}
+                ? `Esta ação removerá ${clienteToDelete.nomeCompleto} da lista atual.`
+                : "Esta ação removerá o cliente da lista atual."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-white hover:bg-destructive/90"
-              onClick={handleDelete}
+              onClick={handleDeleteCliente}
             >
               Apagar
             </AlertDialogAction>

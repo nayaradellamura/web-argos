@@ -83,12 +83,14 @@ interface ParceirosTableProps {
 const statusConfig = {
   pendente: {
     label: "Pendente",
-    className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+    className:
+      "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
     icon: Clock3,
   },
   ativo: {
     label: "Ativo",
-    className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    className:
+      "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
     icon: CheckCircle2,
   },
   bloqueado: {
@@ -96,7 +98,10 @@ const statusConfig = {
     className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
     icon: Ban,
   },
-} satisfies Record<ParceiroStatus, { label: string; className: string; icon: typeof Clock3 }>;
+} satisfies Record<
+  ParceiroStatus,
+  { label: string; className: string; icon: typeof Clock3 }
+>;
 
 function getInitials(nameOrEmail?: string) {
   const value = nameOrEmail?.trim();
@@ -141,7 +146,11 @@ function normalizeStatus(value: unknown): ParceiroStatus {
   return "pendente";
 }
 
-function normalizeTipoAcesso(value: unknown, provider: string, authUid: string): TipoAcesso {
+function normalizeTipoAcesso(
+  value: unknown,
+  provider: string,
+  authUid: string,
+): TipoAcesso {
   if (value === "sso_google" || value === "email_senha") {
     return value;
   }
@@ -204,7 +213,11 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
 
     try {
       return rawResponse
-        ? (JSON.parse(rawResponse) as { error?: string; details?: string; [key: string]: unknown })
+        ? (JSON.parse(rawResponse) as {
+            error?: string;
+            details?: string;
+            [key: string]: unknown;
+          })
         : null;
     } catch {
       const htmlHint = rawResponse.trim().startsWith("<!DOCTYPE")
@@ -239,7 +252,8 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
       throw new Error(
         data?.details
           ? `${data.error ?? "Erro ao aprovar parceiro."} Detalhes: ${data.details}`
-          : data?.error ?? `Erro ${response.status} ao aprovar parceiro por e-mail.`,
+          : (data?.error ??
+              `Erro ${response.status} ao aprovar parceiro por e-mail.`),
       );
     }
 
@@ -254,7 +268,10 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
     return data;
   }
 
-  async function updatePartnerStatus(parceiro: Parceiro, status: ParceiroStatus) {
+  async function updatePartnerStatus(
+    parceiro: Parceiro,
+    status: ParceiroStatus,
+  ) {
     setUpdatingId(parceiro.id);
     setError(null);
     setFeedback(null);
@@ -286,11 +303,16 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
           : {}),
       });
 
-      const label = parceiro.nome || parceiro.displayName || parceiro.email || "parceiro";
+      const label =
+        parceiro.nome || parceiro.displayName || parceiro.email || "parceiro";
       setFeedback(`Acesso de ${label} atualizado para ${status}.`);
     } catch (updateError) {
       console.error("Erro ao atualizar parceiro:", updateError);
-      setError(updateError instanceof Error ? updateError.message : "Não foi possível atualizar o parceiro.");
+      setError(
+        updateError instanceof Error
+          ? updateError.message
+          : "Não foi possível atualizar o parceiro.",
+      );
     } finally {
       setUpdatingId(null);
     }
@@ -328,7 +350,11 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
           const uid = String(docData.uid ?? "");
           const authUid = String(docData.authUid ?? uid ?? "");
           const provider = String(docData.provider ?? "");
-          const tipoAcesso = normalizeTipoAcesso(docData.tipoAcesso, provider, authUid);
+          const tipoAcesso = normalizeTipoAcesso(
+            docData.tipoAcesso,
+            provider,
+            authUid,
+          );
 
           return {
             id: document.id,
@@ -358,7 +384,9 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
       },
       (snapshotError) => {
         console.error("Erro ao carregar users:", snapshotError);
-        setError("Não foi possível carregar a coleção users. Verifique as regras do Firestore.");
+        setError(
+          "Não foi possível carregar a coleção users. Verifique as regras do Firestore.",
+        );
         setLoadingParceiros(false);
       },
     );
@@ -377,7 +405,10 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
         acc.todos += 1;
         return acc;
       },
-      { pendente: 0, ativo: 0, bloqueado: 0, todos: 0 } as Record<StatusFilter, number>,
+      { pendente: 0, ativo: 0, bloqueado: 0, todos: 0 } as Record<
+        StatusFilter,
+        number
+      >,
     );
   }, [parceiros]);
 
@@ -385,7 +416,8 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
     const query = normalizeText(searchQuery);
 
     return parceiros.filter((parceiro) => {
-      const matchesStatus = statusFilter === "todos" || parceiro.status === statusFilter;
+      const matchesStatus =
+        statusFilter === "todos" || parceiro.status === statusFilter;
       const matchesSearch =
         !query ||
         normalizeText(parceiro.nome).includes(query) ||
@@ -400,10 +432,16 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
     });
   }, [parceiros, searchQuery, statusFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredParceiros.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredParceiros.length / ITEMS_PER_PAGE),
+  );
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const startIndex = (safeCurrentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedParceiros = filteredParceiros.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const paginatedParceiros = filteredParceiros.slice(
+    startIndex,
+    startIndex + ITEMS_PER_PAGE,
+  );
 
   if (checkingAdmin) {
     return (
@@ -421,7 +459,9 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
       <Card className="border-0 shadow-sm">
         <CardContent className="flex flex-col items-start gap-4 py-10">
           <div>
-            <h3 className="text-lg font-semibold">Acesso administrativo necessário</h3>
+            <h3 className="text-lg font-semibold">
+              Acesso administrativo necessário
+            </h3>
             <p className="mt-1 text-sm text-muted-foreground">
               Entre com Google para aprovar ou bloquear o acesso dos parceiros.
             </p>
@@ -440,15 +480,23 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
     return (
       <Card className="border-0 shadow-sm">
         <CardContent className="flex flex-col items-start gap-4 py-10">
-          <Badge variant="secondary" className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+          <Badge
+            variant="secondary"
+            className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+          >
             Acesso negado
           </Badge>
           <div>
-            <h3 className="text-lg font-semibold">Sua conta não está liberada para administrar parceiros.</h3>
+            <h3 className="text-lg font-semibold">
+              Sua conta não está liberada para administrar parceiros.
+            </h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Para produção, habilite a validação em admins/uid. Para desenvolvimento, mantenha BYPASS_ADMIN_CHECK como true.
+              Para produção, habilite a validação em admins/uid. Para
+              desenvolvimento, mantenha BYPASS_ADMIN_CHECK como true.
             </p>
-            <p className="mt-2 text-xs text-muted-foreground">Conta atual: {authUser.email}</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Conta atual: {authUser.email}
+            </p>
           </div>
           <Button variant="outline" onClick={handleLogoutAdmin}>
             <LogOut className="mr-2 h-4 w-4" />
@@ -470,13 +518,16 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
             <div>
               <p className="font-medium">Painel de acesso de parceiros</p>
               <p className="text-sm text-muted-foreground">
-                Lendo somente a coleção users · SSO e e-mail/senha centralizados no mesmo lugar
+                Lendo somente a coleção users · SSO e e-mail/senha centralizados
+                no mesmo lugar
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {(["pendente", "ativo", "bloqueado", "todos"] as StatusFilter[]).map((status) => (
+            {(
+              ["pendente", "ativo", "bloqueado", "todos"] as StatusFilter[]
+            ).map((status) => (
               <Button
                 key={status}
                 variant={statusFilter === status ? "default" : "outline"}
@@ -499,7 +550,9 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
       </Card>
 
       <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300">
-        Solicitações de <strong>e-mail/senha</strong> ficam temporariamente em users/email. Ao aprovar, o painel cria o usuário no Authentication, cria users/uid e remove o documento temporário.
+        Solicitações de <strong>e-mail/senha</strong> ficam temporariamente em
+        users/email. Ao aprovar, o painel cria o usuário no Authentication, cria
+        users/uid e remove o documento temporário.
       </div>
 
       {feedback && (
@@ -530,13 +583,19 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
           <TableBody>
             {loadingParceiros ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-28 text-center text-muted-foreground">
+                <TableCell
+                  colSpan={7}
+                  className="h-28 text-center text-muted-foreground"
+                >
                   Carregando parceiros...
                 </TableCell>
               </TableRow>
             ) : paginatedParceiros.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-28 text-center text-muted-foreground">
+                <TableCell
+                  colSpan={7}
+                  className="h-28 text-center text-muted-foreground"
+                >
                   Nenhum parceiro encontrado.
                 </TableCell>
               </TableRow>
@@ -551,16 +610,35 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9">
-                          {parceiro.photoURL && <AvatarImage src={parceiro.photoURL} alt={parceiro.nome || parceiro.email || "Parceiro"} />}
+                          {parceiro.photoURL && (
+                            <AvatarImage
+                              src={parceiro.photoURL}
+                              alt={
+                                parceiro.nome || parceiro.email || "Parceiro"
+                              }
+                            />
+                          )}
                           <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
-                            {getInitials(parceiro.nome || parceiro.displayName || parceiro.email)}
+                            {getInitials(
+                              parceiro.nome ||
+                                parceiro.displayName ||
+                                parceiro.email,
+                            )}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium">{parceiro.nome || parceiro.displayName || "Sem nome"}</p>
-                          <p className="text-sm text-muted-foreground">{parceiro.email || "Sem e-mail"}</p>
+                          <p className="font-medium">
+                            {parceiro.nome ||
+                              parceiro.displayName ||
+                              "Sem nome"}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {parceiro.email || "Sem e-mail"}
+                          </p>
                           <p className="text-xs text-muted-foreground">
-                            {pendingEmailPassword ? "Documento temporário por e-mail" : `UID: ${parceiro.authUid || parceiro.uid || parceiro.id}`}
+                            {pendingEmailPassword
+                              ? "Documento temporário por e-mail"
+                              : `UID: ${parceiro.authUid || parceiro.uid || parceiro.id}`}
                           </p>
                         </div>
                       </div>
@@ -584,7 +662,10 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
                       {parceiro.provider || "—"}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary" className={statusConfig[status].className}>
+                      <Badge
+                        variant="secondary"
+                        className={statusConfig[status].className}
+                      >
                         <StatusIcon className="mr-1 h-3 w-3" />
                         {statusConfig[status].label}
                       </Badge>
@@ -593,18 +674,24 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
                       {formatDate(parceiro.criadoEm)}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {formatDate(parceiro.ultimoAcesso ?? parceiro.ultimoLoginEm)}
+                      {formatDate(
+                        parceiro.ultimoAcesso ?? parceiro.ultimoLoginEm,
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-2">
                         {status !== "ativo" && (
                           <Button
                             size="sm"
-                            onClick={() => updatePartnerStatus(parceiro, "ativo")}
+                            onClick={() =>
+                              updatePartnerStatus(parceiro, "ativo")
+                            }
                             disabled={updatingId === parceiro.id}
                           >
                             <CheckCircle2 className="mr-2 h-4 w-4" />
-                            {pendingEmailPassword ? "Aprovar e enviar acesso" : "Aprovar"}
+                            {pendingEmailPassword
+                              ? "Aprovar e enviar acesso"
+                              : "Aprovar"}
                           </Button>
                         )}
 
@@ -612,7 +699,9 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
                           <Button
                             size="sm"
                             variant="destructive"
-                            onClick={() => updatePartnerStatus(parceiro, "bloqueado")}
+                            onClick={() =>
+                              updatePartnerStatus(parceiro, "bloqueado")
+                            }
                             disabled={updatingId === parceiro.id}
                           >
                             <Ban className="mr-2 h-4 w-4" />
@@ -624,7 +713,9 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => updatePartnerStatus(parceiro, "pendente")}
+                            onClick={() =>
+                              updatePartnerStatus(parceiro, "pendente")
+                            }
                             disabled={updatingId === parceiro.id}
                           >
                             <Clock3 className="mr-2 h-4 w-4" />
@@ -642,7 +733,9 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
 
         <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
-            Mostrando {filteredParceiros.length === 0 ? 0 : startIndex + 1} a {Math.min(startIndex + ITEMS_PER_PAGE, filteredParceiros.length)} de {filteredParceiros.length} parceiros
+            Mostrando {filteredParceiros.length === 0 ? 0 : startIndex + 1} a{" "}
+            {Math.min(startIndex + ITEMS_PER_PAGE, filteredParceiros.length)} de{" "}
+            {filteredParceiros.length} parceiros
           </p>
           <div className="flex items-center gap-1">
             <Button
@@ -672,7 +765,9 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
               variant="outline"
               size="icon"
               className="h-8 w-8"
-              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              onClick={() =>
+                setCurrentPage((page) => Math.min(totalPages, page + 1))
+              }
               disabled={safeCurrentPage === totalPages}
             >
               <ChevronRight className="h-4 w-4" />
