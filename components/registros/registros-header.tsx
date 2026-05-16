@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Plus } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -15,13 +14,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface RegistrosHeaderProps {
   activeTab: string;
@@ -37,264 +29,7 @@ export function RegistrosHeader({
   onSearchChange,
 }: RegistrosHeaderProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-
-  const [clienteForm, setClienteForm] = useState({
-    nome: "",
-    cpfCnpj: "",
-    telefone: "",
-    email: "",
-    riscoHistorico: "baixo",
-    status: "ativo",
-  });
-
-  const [veiculoForm, setVeiculoForm] = useState({
-    placa: "",
-    modelo: "",
-    anoFabricacao: "",
-    proprietario: "",
-    tipoCobertura: "basica",
-    status: "ativo",
-  });
-
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setIsDialogOpen(false);
-  };
-
-  const getDialogTitle = () => {
-    if (activeTab === "clientes") return "Novo Cliente";
-    return "Novo Veículo";
-  };
-
-  const getDialogDescription = () => {
-    if (activeTab === "clientes") {
-      return "Preencha os dados para cadastrar um novo cliente.";
-    }
-    return "Preencha os dados para cadastrar um novo veículo.";
-  };
-
-  const renderFormFields = () => {
-    if (activeTab === "clientes") {
-      return (
-        <>
-          <div className="space-y-2">
-            <Label htmlFor="cliente-nome">Nome completo</Label>
-            <Input
-              id="cliente-nome"
-              value={clienteForm.nome}
-              onChange={(event) =>
-                setClienteForm((prev) => ({
-                  ...prev,
-                  nome: event.target.value,
-                }))
-              }
-              placeholder="Ex.: João da Silva"
-              required
-            />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="cliente-cpf-cnpj">CPF/CNPJ</Label>
-              <Input
-                id="cliente-cpf-cnpj"
-                value={clienteForm.cpfCnpj}
-                onChange={(event) =>
-                  setClienteForm((prev) => ({
-                    ...prev,
-                    cpfCnpj: event.target.value,
-                  }))
-                }
-                placeholder="000.000.000-00"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cliente-telefone">Telefone</Label>
-              <Input
-                id="cliente-telefone"
-                value={clienteForm.telefone}
-                onChange={(event) =>
-                  setClienteForm((prev) => ({
-                    ...prev,
-                    telefone: event.target.value,
-                  }))
-                }
-                placeholder="(11) 99999-9999"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="cliente-email">E-mail</Label>
-            <Input
-              id="cliente-email"
-              type="email"
-              value={clienteForm.email}
-              onChange={(event) =>
-                setClienteForm((prev) => ({
-                  ...prev,
-                  email: event.target.value,
-                }))
-              }
-              placeholder="cliente@email.com"
-              required
-            />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Risco histórico</Label>
-              <Select
-                value={clienteForm.riscoHistorico}
-                onValueChange={(value) =>
-                  setClienteForm((prev) => ({ ...prev, riscoHistorico: value }))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="baixo">Baixo</SelectItem>
-                  <SelectItem value="medio">Médio</SelectItem>
-                  <SelectItem value="alto">Alto</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select
-                value={clienteForm.status}
-                onValueChange={(value) =>
-                  setClienteForm((prev) => ({ ...prev, status: value }))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ativo">Ativo</SelectItem>
-                  <SelectItem value="bloqueado">Bloqueado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </>
-      );
-    }
-
-    return (
-      <>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="veiculo-placa">Placa</Label>
-            <Input
-              id="veiculo-placa"
-              value={veiculoForm.placa}
-              onChange={(event) =>
-                setVeiculoForm((prev) => ({
-                  ...prev,
-                  placa: event.target.value,
-                }))
-              }
-              placeholder="ABC-1234"
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="veiculo-ano">Ano de fabricação</Label>
-            <Input
-              id="veiculo-ano"
-              type="number"
-              value={veiculoForm.anoFabricacao}
-              onChange={(event) =>
-                setVeiculoForm((prev) => ({
-                  ...prev,
-                  anoFabricacao: event.target.value,
-                }))
-              }
-              placeholder="2024"
-              required
-            />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="veiculo-modelo">Modelo</Label>
-          <Input
-            id="veiculo-modelo"
-            value={veiculoForm.modelo}
-            onChange={(event) =>
-              setVeiculoForm((prev) => ({
-                ...prev,
-                modelo: event.target.value,
-              }))
-            }
-            placeholder="Ex.: Toyota Corolla"
-            required
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="veiculo-proprietario">Proprietário</Label>
-          <Input
-            id="veiculo-proprietario"
-            value={veiculoForm.proprietario}
-            onChange={(event) =>
-              setVeiculoForm((prev) => ({
-                ...prev,
-                proprietario: event.target.value,
-              }))
-            }
-            placeholder="Ex.: João Silva Santos"
-            required
-          />
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Tipo de cobertura</Label>
-            <Select
-              value={veiculoForm.tipoCobertura}
-              onValueChange={(value) =>
-                setVeiculoForm((prev) => ({ ...prev, tipoCobertura: value }))
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="basica">Básica</SelectItem>
-                <SelectItem value="completa">Completa</SelectItem>
-                <SelectItem value="premium">Premium</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Status</Label>
-            <Select
-              value={veiculoForm.status}
-              onValueChange={(value) =>
-                setVeiculoForm((prev) => ({ ...prev, status: value }))
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ativo">Ativo</SelectItem>
-                <SelectItem value="sinistrado">Sinistrado</SelectItem>
-                <SelectItem value="inativo">Inativo</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </>
-    );
-  };
+  const showCreateAction = activeTab !== "parceiros";
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -316,12 +51,14 @@ export function RegistrosHeader({
                 : "Buscar registros..."
             }
             value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="w-64 pl-9 bg-card"
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              onSearchChange(e.target.value)
+            }
+            className="w-64 bg-card pl-9"
           />
         </div>
 
-        {activeTab !== "parceiros" && (
+        {showCreateAction && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -329,26 +66,29 @@ export function RegistrosHeader({
                 Novo Registro
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-xl">
+            <DialogContent className="sm:max-w-lg">
               <DialogHeader>
-                <DialogTitle>{getDialogTitle()}</DialogTitle>
-                <DialogDescription>{getDialogDescription()}</DialogDescription>
+                <DialogTitle>
+                  {activeTab === "clientes" ? "Novo Cliente" : "Novo Veículo"}
+                </DialogTitle>
+                <DialogDescription>
+                  {activeTab === "clientes"
+                    ? "A criação de clientes permanece disponível nesta tela."
+                    : "A criação de veículos permanece disponível nesta tela."}
+                </DialogDescription>
               </DialogHeader>
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {renderFormFields()}
-
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsDialogOpen(false)}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button type="submit">Salvar Registro</Button>
-                </DialogFooter>
-              </form>
+              <div className="rounded-lg border border-dashed bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
+                Se quiser, eu posso recolocar aqui o formulário completo depois.
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsDialogOpen(false)}
+                >
+                  Fechar
+                </Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         )}

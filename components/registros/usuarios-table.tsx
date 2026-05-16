@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   MoreHorizontal,
   Eye,
@@ -50,7 +50,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -60,102 +60,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  type Usuario,
+  getUsuarios,
+  updateUsuario,
+  deleteUsuario,
+} from "@/lib/services/registros";
 
-interface Usuario {
-  id: string;
-  nome: string;
-  email: string;
-  cargo: string;
-  departamento: string;
-  nivelAcesso: "admin" | "gestor" | "analista";
-  status: "ativo" | "inativo";
-  ultimoAcesso: string;
-}
-
-const usuariosData: Usuario[] = [
-  {
-    id: "USR-001",
-    nome: "Nayara Dellamura",
-    email: "nayara.dellamura@argos.com",
-    cargo: "Analista Sênior",
-    departamento: "Regulação",
-    nivelAcesso: "gestor",
-    status: "ativo",
-    ultimoAcesso: "Agora",
-  },
-  {
-    id: "USR-002",
-    nome: "Ricardo Almeida",
-    email: "ricardo.almeida@argos.com",
-    cargo: "Diretor de Operações",
-    departamento: "Diretoria",
-    nivelAcesso: "admin",
-    status: "ativo",
-    ultimoAcesso: "2h atrás",
-  },
-  {
-    id: "USR-003",
-    nome: "Camila Ferreira",
-    email: "camila.ferreira@argos.com",
-    cargo: "Analista de Sinistros",
-    departamento: "Regulação",
-    nivelAcesso: "analista",
-    status: "ativo",
-    ultimoAcesso: "1h atrás",
-  },
-  {
-    id: "USR-004",
-    nome: "Pedro Henrique Costa",
-    email: "pedro.costa@argos.com",
-    cargo: "Gestor de Fraudes",
-    departamento: "Compliance",
-    nivelAcesso: "gestor",
-    status: "ativo",
-    ultimoAcesso: "30min atrás",
-  },
-  {
-    id: "USR-005",
-    nome: "Juliana Santos",
-    email: "juliana.santos@argos.com",
-    cargo: "Analista de Vistoria",
-    departamento: "Vistoria",
-    nivelAcesso: "analista",
-    status: "inativo",
-    ultimoAcesso: "5 dias atrás",
-  },
-  {
-    id: "USR-006",
-    nome: "Bruno Oliveira",
-    email: "bruno.oliveira@argos.com",
-    cargo: "Coordenador Técnico",
-    departamento: "TI",
-    nivelAcesso: "admin",
-    status: "ativo",
-    ultimoAcesso: "15min atrás",
-  },
-  {
-    id: "USR-007",
-    nome: "Amanda Lima",
-    email: "amanda.lima@argos.com",
-    cargo: "Analista de Orçamentos",
-    departamento: "Orçamentação",
-    nivelAcesso: "analista",
-    status: "ativo",
-    ultimoAcesso: "45min atrás",
-  },
-];
-
-function getNivelAcessoBadge(nivel: Usuario["nivelAcesso"]) {
-  const config = {
+function getNivelBadge(nivel: string) {
+  const map: Record<
+    string,
+    { label: string; className: string; icon: React.ElementType }
+  > = {
     admin: {
       label: "Admin",
-      className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+      className: "bg-red-100 text-red-700",
       icon: ShieldAlert,
     },
     gestor: {
       label: "Gestor",
-      className:
-        "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+      className: "bg-amber-100 text-amber-700",
       icon: ShieldCheck,
     },
     analista: {
@@ -164,28 +89,48 @@ function getNivelAcessoBadge(nivel: Usuario["nivelAcesso"]) {
       icon: Shield,
     },
   };
-  return config[nivel];
+  return (
+    map[nivel] ?? {
+      label: nivel,
+      className: "bg-muted text-muted-foreground",
+      icon: Shield,
+    }
+  );
 }
 
-function getStatusBadge(status: Usuario["status"]) {
-  const config = {
-    ativo: {
-      label: "Ativo",
-      className:
-        "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-    },
+function getStatusBadge(status: string) {
+  const map: Record<string, { label: string; className: string }> = {
+    ativo: { label: "Ativo", className: "bg-emerald-100 text-emerald-700" },
     inativo: { label: "Inativo", className: "bg-muted text-muted-foreground" },
   };
-  return config[status];
+  return (
+    map[status] ?? {
+      label: status,
+      className: "bg-muted text-muted-foreground",
+    }
+  );
 }
 
 function getInitials(name: string) {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+  return (
+    name
+      ?.split(" ")
+      .map((n) => n[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() ?? "?"
+  );
+}
+
+function formatUltimoAcesso(ts: any): string {
+  if (!ts) return "—";
+  if (typeof ts === "string") return ts;
+  if (ts?.toDate) {
+    return ts
+      .toDate()
+      .toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+  }
+  return "—";
 }
 
 interface UsuariosTableProps {
@@ -193,25 +138,30 @@ interface UsuariosTableProps {
 }
 
 export function UsuariosTable({ searchQuery }: UsuariosTableProps) {
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [usuarios, setUsuarios] = useState(usuariosData);
   const [selectedUsuario, setSelectedUsuario] = useState<Usuario | null>(null);
   const [dialogMode, setDialogMode] = useState<"view" | "edit" | null>(null);
   const [usuarioToDelete, setUsuarioToDelete] = useState<Usuario | null>(null);
   const [editForm, setEditForm] = useState<Usuario | null>(null);
+  const [saving, setSaving] = useState(false);
   const itemsPerPage = 5;
+
+  useEffect(() => {
+    getUsuarios()
+      .then(setUsuarios)
+      .finally(() => setLoading(false));
+  }, []);
 
   const filteredData = useMemo(
     () =>
       usuarios.filter(
-        (usuario) =>
-          usuario.nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          usuario.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          usuario.cargo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          usuario.departamento
-            .toLowerCase()
-            .includes(searchQuery.toLowerCase()) ||
-          usuario.id.toLowerCase().includes(searchQuery.toLowerCase()),
+        (u) =>
+          u.nome?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          u.cargo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          u.departamento?.toLowerCase().includes(searchQuery.toLowerCase()),
       ),
     [usuarios, searchQuery],
   );
@@ -224,48 +174,55 @@ export function UsuariosTable({ searchQuery }: UsuariosTableProps) {
     startIndex + itemsPerPage,
   );
 
-  const openViewDialog = (usuario: Usuario) => {
-    setSelectedUsuario(usuario);
+  const openViewDialog = (u: Usuario) => {
+    setSelectedUsuario(u);
     setEditForm(null);
     setDialogMode("view");
   };
-
-  const openEditDialog = (usuario: Usuario) => {
-    setSelectedUsuario(usuario);
-    setEditForm(usuario);
+  const openEditDialog = (u: Usuario) => {
+    setSelectedUsuario(u);
+    setEditForm(u);
     setDialogMode("edit");
   };
-
   const closeDialog = () => {
     setSelectedUsuario(null);
     setEditForm(null);
     setDialogMode(null);
   };
 
-  const handleSaveEdit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
+  const handleSaveEdit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
     if (!editForm) return;
-
-    setUsuarios((current) =>
-      current.map((usuario) =>
-        usuario.id === editForm.id ? editForm : usuario,
-      ),
-    );
-
-    closeDialog();
+    setSaving(true);
+    try {
+      await updateUsuario(editForm.id, editForm);
+      setUsuarios((prev) =>
+        prev.map((u) => (u.id === editForm.id ? editForm : u)),
+      );
+      closeDialog();
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDeleteUsuario = () => {
+  const handleDelete = async () => {
     if (!usuarioToDelete) return;
-
-    setUsuarios((current) =>
-      current.filter((usuario) => usuario.id !== usuarioToDelete.id),
-    );
+    await deleteUsuario(usuarioToDelete.id);
+    setUsuarios((prev) => prev.filter((u) => u.id !== usuarioToDelete.id));
     setUsuarioToDelete(null);
   };
 
   const dialogUsuario = dialogMode === "edit" ? editForm : selectedUsuario;
+
+  if (loading) {
+    return (
+      <Card className="border-0 shadow-sm p-4 space-y-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full rounded-lg" />
+        ))}
+      </Card>
+    );
+  }
 
   return (
     <>
@@ -279,20 +236,22 @@ export function UsuariosTable({ searchQuery }: UsuariosTableProps) {
               <TableHead className="font-semibold">Nível de Acesso</TableHead>
               <TableHead className="font-semibold">Status</TableHead>
               <TableHead className="font-semibold">Último Acesso</TableHead>
-              <TableHead className="w-12"></TableHead>
+              <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {paginatedData.map((usuario) => {
-              const nivelBadge = getNivelAcessoBadge(usuario.nivelAcesso);
-              const statusBadge = getStatusBadge(usuario.status);
-              const NivelIcon = nivelBadge.icon;
-
+              const nivel = getNivelBadge(usuario.nivelAcesso);
+              const status = getStatusBadge(usuario.status);
+              const NivelIcon = nivel.icon;
               return (
                 <TableRow key={usuario.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <Avatar className="h-9 w-9">
+                        {usuario.foto && (
+                          <AvatarImage src={usuario.foto} alt={usuario.nome} />
+                        )}
                         <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
                           {getInitials(usuario.nome)}
                         </AvatarFallback>
@@ -310,50 +269,43 @@ export function UsuariosTable({ searchQuery }: UsuariosTableProps) {
                     {usuario.departamento}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className={nivelBadge.className}>
+                    <Badge variant="secondary" className={nivel.className}>
                       <NivelIcon className="mr-1 h-3 w-3" />
-                      {nivelBadge.label}
+                      {nivel.label}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      variant="secondary"
-                      className={statusBadge.className}
-                    >
-                      {statusBadge.label}
+                    <Badge variant="secondary" className={status.className}>
+                      {status.label}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {usuario.ultimoAcesso}
+                    {formatUltimoAcesso(usuario.ultimoAcesso)}
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
                           <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Abrir menu</span>
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
                           onClick={() => openViewDialog(usuario)}
                         >
-                          <Eye className="mr-2 h-4 w-4" />
-                          Visualizar
+                          <Eye className="mr-2 h-4 w-4" /> Visualizar
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => openEditDialog(usuario)}
                         >
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Editar
+                          <Pencil className="mr-2 h-4 w-4" /> Editar
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           variant="destructive"
                           onClick={() => setUsuarioToDelete(usuario)}
                         >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Apagar
+                          <Trash2 className="mr-2 h-4 w-4" /> Apagar
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -379,7 +331,6 @@ export function UsuariosTable({ searchQuery }: UsuariosTableProps) {
               disabled={safeCurrentPage === 1}
             >
               <ChevronsLeft className="h-4 w-4" />
-              <span className="sr-only">Primeira página</span>
             </Button>
             <Button
               variant="outline"
@@ -389,7 +340,6 @@ export function UsuariosTable({ searchQuery }: UsuariosTableProps) {
               disabled={safeCurrentPage === 1}
             >
               <ChevronLeft className="h-4 w-4" />
-              <span className="sr-only">Página anterior</span>
             </Button>
             <span className="px-3 text-sm text-muted-foreground">
               Página {safeCurrentPage} de {totalPages}
@@ -402,7 +352,6 @@ export function UsuariosTable({ searchQuery }: UsuariosTableProps) {
               disabled={safeCurrentPage === totalPages}
             >
               <ChevronRight className="h-4 w-4" />
-              <span className="sr-only">Próxima página</span>
             </Button>
             <Button
               variant="outline"
@@ -412,7 +361,6 @@ export function UsuariosTable({ searchQuery }: UsuariosTableProps) {
               disabled={safeCurrentPage === totalPages}
             >
               <ChevronsRight className="h-4 w-4" />
-              <span className="sr-only">Última página</span>
             </Button>
           </div>
         </div>
@@ -429,92 +377,76 @@ export function UsuariosTable({ searchQuery }: UsuariosTableProps) {
             </DialogTitle>
             <DialogDescription>
               {dialogMode === "edit"
-                ? "Atualize os dados do usuário selecionado."
-                : "Confira as informações completas do usuário selecionado."}
+                ? "Atualize os dados do usuário."
+                : "Informações completas do usuário."}
             </DialogDescription>
           </DialogHeader>
-
           {dialogUsuario && (
             <form onSubmit={handleSaveEdit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="usuario-id">ID</Label>
-                <Input id="usuario-id" value={dialogUsuario.id} disabled />
-              </div>
-
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="usuario-nome">Nome</Label>
+                  <Label>Nome</Label>
                   <Input
-                    id="usuario-nome"
                     value={dialogUsuario.nome}
                     disabled={dialogMode === "view"}
-                    onChange={(event) =>
-                      setEditForm((prev) =>
-                        prev ? { ...prev, nome: event.target.value } : prev,
+                    onChange={(e) =>
+                      setEditForm((p) =>
+                        p ? { ...p, nome: e.target.value } : p,
                       )
                     }
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="usuario-email">E-mail</Label>
+                  <Label>E-mail</Label>
                   <Input
-                    id="usuario-email"
                     value={dialogUsuario.email}
                     disabled={dialogMode === "view"}
-                    onChange={(event) =>
-                      setEditForm((prev) =>
-                        prev ? { ...prev, email: event.target.value } : prev,
+                    onChange={(e) =>
+                      setEditForm((p) =>
+                        p ? { ...p, email: e.target.value } : p,
                       )
                     }
                   />
                 </div>
               </div>
-
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="usuario-cargo">Cargo</Label>
+                  <Label>Cargo</Label>
                   <Input
-                    id="usuario-cargo"
-                    value={dialogUsuario.cargo}
+                    value={dialogUsuario.cargo ?? ""}
                     disabled={dialogMode === "view"}
-                    onChange={(event) =>
-                      setEditForm((prev) =>
-                        prev ? { ...prev, cargo: event.target.value } : prev,
+                    onChange={(e) =>
+                      setEditForm((p) =>
+                        p ? { ...p, cargo: e.target.value } : p,
                       )
                     }
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="usuario-departamento">Departamento</Label>
+                  <Label>Departamento</Label>
                   <Input
-                    id="usuario-departamento"
-                    value={dialogUsuario.departamento}
+                    value={dialogUsuario.departamento ?? ""}
                     disabled={dialogMode === "view"}
-                    onChange={(event) =>
-                      setEditForm((prev) =>
-                        prev
-                          ? { ...prev, departamento: event.target.value }
-                          : prev,
+                    onChange={(e) =>
+                      setEditForm((p) =>
+                        p ? { ...p, departamento: e.target.value } : p,
                       )
                     }
                   />
                 </div>
               </div>
-
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Nível de acesso</Label>
                   <Select
-                    value={dialogUsuario.nivelAcesso}
+                    value={dialogUsuario.nivelAcesso ?? "analista"}
                     disabled={dialogMode === "view"}
-                    onValueChange={(value: Usuario["nivelAcesso"]) =>
-                      setEditForm((prev) =>
-                        prev ? { ...prev, nivelAcesso: value } : prev,
-                      )
+                    onValueChange={(v) =>
+                      setEditForm((p) => (p ? { ...p, nivelAcesso: v } : p))
                     }
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione" />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="admin">Admin</SelectItem>
@@ -528,14 +460,12 @@ export function UsuariosTable({ searchQuery }: UsuariosTableProps) {
                   <Select
                     value={dialogUsuario.status}
                     disabled={dialogMode === "view"}
-                    onValueChange={(value: Usuario["status"]) =>
-                      setEditForm((prev) =>
-                        prev ? { ...prev, status: value } : prev,
-                      )
+                    onValueChange={(v) =>
+                      setEditForm((p) => (p ? { ...p, status: v } : p))
                     }
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione" />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ativo">Ativo</SelectItem>
@@ -544,29 +474,14 @@ export function UsuariosTable({ searchQuery }: UsuariosTableProps) {
                   </Select>
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="usuario-ultimo-acesso">Último acesso</Label>
-                <Input
-                  id="usuario-ultimo-acesso"
-                  value={dialogUsuario.ultimoAcesso}
-                  disabled={dialogMode === "view"}
-                  onChange={(event) =>
-                    setEditForm((prev) =>
-                      prev
-                        ? { ...prev, ultimoAcesso: event.target.value }
-                        : prev,
-                    )
-                  }
-                />
-              </div>
-
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={closeDialog}>
                   Fechar
                 </Button>
                 {dialogMode === "edit" && (
-                  <Button type="submit">Salvar Alterações</Button>
+                  <Button type="submit" disabled={saving}>
+                    {saving ? "Salvando..." : "Salvar Alterações"}
+                  </Button>
                 )}
               </DialogFooter>
             </form>
@@ -583,15 +498,15 @@ export function UsuariosTable({ searchQuery }: UsuariosTableProps) {
             <AlertDialogTitle>Apagar usuário?</AlertDialogTitle>
             <AlertDialogDescription>
               {usuarioToDelete
-                ? `Esta ação removerá ${usuarioToDelete.nome} da lista atual.`
-                : "Esta ação removerá o usuário da lista atual."}
+                ? `Esta ação removerá ${usuarioToDelete.nome} permanentemente.`
+                : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-white hover:bg-destructive/90"
-              onClick={handleDeleteUsuario}
+              onClick={handleDelete}
             >
               Apagar
             </AlertDialogAction>

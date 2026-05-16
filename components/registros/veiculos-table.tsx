@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   MoreHorizontal,
   Eye,
@@ -56,110 +56,94 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  type Cliente,
+  type Veiculo,
+  getClientes,
+  getVeiculos,
+  updateVeiculo,
+  deleteVeiculo,
+} from "@/lib/services/registros";
 
-interface Veiculo {
-  id: string;
-  placa: string;
-  modelo: string;
-  anoFabricacao: number;
-  proprietario: string;
-  tipoCobertura: "basica" | "completa" | "premium";
-  status: "ativo" | "sinistrado" | "inativo";
+function getStatusBadge(status: string) {
+  const map: Record<string, { label: string; className: string }> = {
+    Ativo: { label: "Ativo", className: "bg-emerald-100 text-emerald-700" },
+    ativo: { label: "Ativo", className: "bg-emerald-100 text-emerald-700" },
+    sinistrado: { label: "Sinistrado", className: "bg-red-100 text-red-700" },
+    Sinistrado: { label: "Sinistrado", className: "bg-red-100 text-red-700" },
+    inativo: { label: "Inativo", className: "bg-muted text-muted-foreground" },
+    Inativo: { label: "Inativo", className: "bg-muted text-muted-foreground" },
+  };
+  return (
+    map[status] ?? {
+      label: status,
+      className: "bg-muted text-muted-foreground",
+    }
+  );
 }
 
-const veiculosData: Veiculo[] = [
-  {
-    id: "VEI-001",
-    placa: "ABC-1234",
-    modelo: "Honda Civic 2.0",
-    anoFabricacao: 2022,
-    proprietario: "João Silva Santos",
-    tipoCobertura: "completa",
-    status: "ativo",
-  },
-  {
-    id: "VEI-002",
-    placa: "XYZ-5678",
-    modelo: "Toyota Corolla Cross",
-    anoFabricacao: 2023,
-    proprietario: "Maria Oliveira Costa",
-    tipoCobertura: "premium",
-    status: "sinistrado",
-  },
-  {
-    id: "VEI-003",
-    placa: "DEF-9012",
-    modelo: "Volkswagen Polo 1.0",
-    anoFabricacao: 2021,
-    proprietario: "Carlos Eduardo Mendes",
-    tipoCobertura: "basica",
-    status: "ativo",
-  },
-  {
-    id: "VEI-004",
-    placa: "GHI-3456",
-    modelo: "Chevrolet Onix Plus",
-    anoFabricacao: 2022,
-    proprietario: "Ana Paula Ferreira",
-    tipoCobertura: "completa",
-    status: "ativo",
-  },
-  {
-    id: "VEI-005",
-    placa: "JKL-7890",
-    modelo: "Fiat Pulse Impetus",
-    anoFabricacao: 2023,
-    proprietario: "Roberto Almeida Junior",
-    tipoCobertura: "premium",
-    status: "inativo",
-  },
-  {
-    id: "VEI-006",
-    placa: "MNO-1234",
-    modelo: "Hyundai HB20S",
-    anoFabricacao: 2021,
-    proprietario: "Patricia Lima Souza",
-    tipoCobertura: "basica",
-    status: "ativo",
-  },
-  {
-    id: "VEI-007",
-    placa: "PQR-5678",
-    modelo: "Jeep Compass Limited",
-    anoFabricacao: 2024,
-    proprietario: "Fernando Costa Neto",
-    tipoCobertura: "premium",
-    status: "ativo",
-  },
-];
+function getCoberturaBadge(cobertura: string) {
+  const normalizedKey = String(cobertura ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
 
-function getCoberturaBadge(cobertura: Veiculo["tipoCobertura"]) {
-  const config = {
-    basica: { label: "Básica", className: "bg-muted text-muted-foreground" },
-    completa: { label: "Completa", className: "bg-primary/10 text-primary" },
+  const map: Record<string, { label: string; className: string }> = {
+    "roubo e furto": {
+      label: "Roubo e Furto",
+      className:
+        "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",
+    },
+    terceiros: {
+      label: "Terceiros",
+      className:
+        "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+    },
+    basica: {
+      label: "Básica",
+      className: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400",
+    },
+    intermediaria: {
+      label: "Intermediária",
+      className:
+        "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400",
+    },
+    completa: {
+      label: "Completa",
+      className:
+        "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    },
+    compreensiva: {
+      label: "Compreensiva",
+      className:
+        "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400",
+    },
     premium: {
       label: "Premium",
       className:
         "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
     },
-  };
-  return config[cobertura];
-}
-
-function getStatusBadge(status: Veiculo["status"]) {
-  const config = {
-    ativo: {
-      label: "Ativo",
+    "protecao total": {
+      label: "Proteção Total",
       className:
-        "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+        "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-400",
     },
-    sinistrado: {
-      label: "Sinistrado",
-      className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-    },
-    inativo: { label: "Inativo", className: "bg-muted text-muted-foreground" },
   };
-  return config[status];
+
+  const normalizedMatch = map[normalizedKey];
+
+  if (normalizedMatch) {
+    return normalizedMatch;
+  }
+
+  return (
+    map[cobertura] ?? {
+      label: cobertura,
+      className: "bg-muted text-muted-foreground",
+    }
+  );
 }
 
 interface VeiculosTableProps {
@@ -167,27 +151,91 @@ interface VeiculosTableProps {
 }
 
 export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
+  const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [veiculos, setVeiculos] = useState(veiculosData);
   const [selectedVeiculo, setSelectedVeiculo] = useState<Veiculo | null>(null);
   const [dialogMode, setDialogMode] = useState<"view" | "edit" | null>(null);
   const [veiculoToDelete, setVeiculoToDelete] = useState<Veiculo | null>(null);
   const [editForm, setEditForm] = useState<Veiculo | null>(null);
-  const itemsPerPage = 5;
+  const [saving, setSaving] = useState(false);
+  const itemsPerPage = 10;
 
-  const filteredData = useMemo(
-    () =>
-      veiculos.filter(
-        (veiculo) =>
-          veiculo.placa.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          veiculo.modelo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          veiculo.proprietario
-            .toLowerCase()
-            .includes(searchQuery.toLowerCase()) ||
-          veiculo.id.toLowerCase().includes(searchQuery.toLowerCase()),
-      ),
-    [veiculos, searchQuery],
-  );
+  useEffect(() => {
+    Promise.all([getVeiculos(), getClientes()])
+      .then(([veiculosData, clientesData]) => {
+        setVeiculos(veiculosData);
+        setClientes(clientesData);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const normalizeKey = (value: unknown) =>
+    String(value ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
+
+  const normalizeDigits = (value: unknown) =>
+    String(value ?? "").replace(/\D/g, "");
+
+  const clientesLookup = useMemo(() => {
+    return clientes.reduce<Record<string, string>>((acc, cliente) => {
+      const nome = cliente.nomeCompleto || "—";
+      const keys = [
+        normalizeKey(cliente.id),
+        normalizeKey(cliente.nomeCompleto),
+        normalizeKey(cliente.email),
+      ];
+
+      const cpfCnpjDigits = normalizeDigits(cliente.cpfCnpj);
+      if (cpfCnpjDigits) {
+        keys.push(cpfCnpjDigits);
+      }
+
+      keys.forEach((key) => {
+        if (key) {
+          acc[key] = nome;
+        }
+      });
+
+      return acc;
+    }, {});
+  }, [clientes]);
+
+  const getClienteNome = (veiculo: Veiculo) => {
+    const references = [
+      normalizeKey(veiculo.clienteId),
+      normalizeKey(veiculo.proprietario),
+      normalizeDigits(veiculo.clienteId),
+      normalizeDigits(veiculo.proprietario),
+    ].filter(Boolean);
+
+    for (const reference of references) {
+      if (clientesLookup[reference]) {
+        return clientesLookup[reference];
+      }
+    }
+
+    return veiculo.proprietario || "—";
+  };
+
+  const toSearchText = (value: unknown) => String(value ?? "").toLowerCase();
+
+  const filteredData = useMemo(() => {
+    const query = toSearchText(searchQuery);
+
+    return veiculos.filter(
+      (v) =>
+        toSearchText(v.placa).includes(query) ||
+        toSearchText(v.modelo).includes(query) ||
+        toSearchText(v.marca).includes(query) ||
+        toSearchText(getClienteNome(v)).includes(query) ||
+        toSearchText(v.id).includes(query),
+    );
+  }, [veiculos, searchQuery, clientesLookup]);
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage));
   const safeCurrentPage = Math.min(currentPage, totalPages);
@@ -197,48 +245,55 @@ export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
     startIndex + itemsPerPage,
   );
 
-  const openViewDialog = (veiculo: Veiculo) => {
-    setSelectedVeiculo(veiculo);
+  const openViewDialog = (v: Veiculo) => {
+    setSelectedVeiculo(v);
     setEditForm(null);
     setDialogMode("view");
   };
-
-  const openEditDialog = (veiculo: Veiculo) => {
-    setSelectedVeiculo(veiculo);
-    setEditForm(veiculo);
+  const openEditDialog = (v: Veiculo) => {
+    setSelectedVeiculo(v);
+    setEditForm(v);
     setDialogMode("edit");
   };
-
   const closeDialog = () => {
     setSelectedVeiculo(null);
     setEditForm(null);
     setDialogMode(null);
   };
 
-  const handleSaveEdit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
+  const handleSaveEdit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
     if (!editForm) return;
-
-    setVeiculos((current) =>
-      current.map((veiculo) =>
-        veiculo.id === editForm.id ? editForm : veiculo,
-      ),
-    );
-
-    closeDialog();
+    setSaving(true);
+    try {
+      await updateVeiculo(editForm.id, editForm);
+      setVeiculos((prev) =>
+        prev.map((v) => (v.id === editForm.id ? editForm : v)),
+      );
+      closeDialog();
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDeleteVeiculo = () => {
+  const handleDelete = async () => {
     if (!veiculoToDelete) return;
-
-    setVeiculos((current) =>
-      current.filter((veiculo) => veiculo.id !== veiculoToDelete.id),
-    );
+    await deleteVeiculo(veiculoToDelete.id);
+    setVeiculos((prev) => prev.filter((v) => v.id !== veiculoToDelete.id));
     setVeiculoToDelete(null);
   };
 
   const dialogVeiculo = dialogMode === "edit" ? editForm : selectedVeiculo;
+
+  if (loading) {
+    return (
+      <Card className="border-0 shadow-sm p-4 space-y-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full rounded-lg" />
+        ))}
+      </Card>
+    );
+  }
 
   return (
     <>
@@ -247,48 +302,42 @@ export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
           <Table className="min-w-[900px]">
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50">
-                <TableHead className="font-semibold">ID</TableHead>
                 <TableHead className="font-semibold">Placa</TableHead>
-                <TableHead className="font-semibold">Modelo</TableHead>
+                <TableHead className="font-semibold">Marca / Modelo</TableHead>
                 <TableHead className="font-semibold">Ano</TableHead>
-                <TableHead className="font-semibold">Proprietário</TableHead>
+                <TableHead className="font-semibold">Cliente</TableHead>
                 <TableHead className="font-semibold">Cobertura</TableHead>
                 <TableHead className="font-semibold">Status</TableHead>
-                <TableHead className="w-12"></TableHead>
+                <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {paginatedData.map((veiculo) => {
-                const coberturaBadge = getCoberturaBadge(veiculo.tipoCobertura);
-                const statusBadge = getStatusBadge(veiculo.status);
-
+                const status = getStatusBadge(veiculo.status);
+                const cobertura = getCoberturaBadge(veiculo.tipoCobertura);
                 return (
                   <TableRow key={veiculo.id}>
-                    <TableCell className="font-medium text-primary">
-                      {veiculo.id}
-                    </TableCell>
                     <TableCell className="font-mono font-medium">
                       {veiculo.placa}
                     </TableCell>
-                    <TableCell>{veiculo.modelo}</TableCell>
+                    <TableCell>
+                      {veiculo.marca} {veiculo.modelo}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       {veiculo.anoFabricacao}
                     </TableCell>
-                    <TableCell>{veiculo.proprietario}</TableCell>
+                    <TableCell>{getClienteNome(veiculo)}</TableCell>
                     <TableCell>
                       <Badge
                         variant="secondary"
-                        className={coberturaBadge.className}
+                        className={cobertura.className}
                       >
-                        {coberturaBadge.label}
+                        {cobertura.label}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant="secondary"
-                        className={statusBadge.className}
-                      >
-                        {statusBadge.label}
+                      <Badge variant="secondary" className={status.className}>
+                        {status.label}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -300,29 +349,25 @@ export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
                             className="h-8 w-8"
                           >
                             <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Abrir menu</span>
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
                             onClick={() => openViewDialog(veiculo)}
                           >
-                            <Eye className="mr-2 h-4 w-4" />
-                            Visualizar
+                            <Eye className="mr-2 h-4 w-4" /> Visualizar
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => openEditDialog(veiculo)}
                           >
-                            <Pencil className="mr-2 h-4 w-4" />
-                            Editar
+                            <Pencil className="mr-2 h-4 w-4" /> Editar
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             variant="destructive"
                             onClick={() => setVeiculoToDelete(veiculo)}
                           >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Apagar
+                            <Trash2 className="mr-2 h-4 w-4" /> Apagar
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -332,58 +377,54 @@ export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
               })}
             </TableBody>
           </Table>
+        </div>
 
-          <div className="flex items-center justify-between border-t px-4 py-3">
-            <p className="text-sm text-muted-foreground">
-              Mostrando {startIndex + 1} a{" "}
-              {Math.min(startIndex + itemsPerPage, filteredData.length)} de{" "}
-              {filteredData.length} registros
-            </p>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setCurrentPage(1)}
-                disabled={safeCurrentPage === 1}
-              >
-                <ChevronsLeft className="h-4 w-4" />
-                <span className="sr-only">Primeira página</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setCurrentPage(currentPage - 1)}
-                disabled={safeCurrentPage === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                <span className="sr-only">Página anterior</span>
-              </Button>
-              <span className="px-3 text-sm text-muted-foreground">
-                Página {safeCurrentPage} de {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setCurrentPage(currentPage + 1)}
-                disabled={safeCurrentPage === totalPages}
-              >
-                <ChevronRight className="h-4 w-4" />
-                <span className="sr-only">Próxima página</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setCurrentPage(totalPages)}
-                disabled={safeCurrentPage === totalPages}
-              >
-                <ChevronsRight className="h-4 w-4" />
-                <span className="sr-only">Última página</span>
-              </Button>
-            </div>
+        <div className="flex items-center justify-between border-t px-4 py-3">
+          <p className="text-sm text-muted-foreground">
+            Mostrando {startIndex + 1} a{" "}
+            {Math.min(startIndex + itemsPerPage, filteredData.length)} de{" "}
+            {filteredData.length} registros
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCurrentPage(1)}
+              disabled={safeCurrentPage === 1}
+            >
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCurrentPage(currentPage - 1)}
+              disabled={safeCurrentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="px-3 text-sm text-muted-foreground">
+              Página {safeCurrentPage} de {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCurrentPage(currentPage + 1)}
+              disabled={safeCurrentPage === totalPages}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={safeCurrentPage === totalPages}
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </Card>
@@ -399,139 +440,106 @@ export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
             </DialogTitle>
             <DialogDescription>
               {dialogMode === "edit"
-                ? "Atualize os dados do veículo selecionado."
-                : "Confira as informações completas do veículo selecionado."}
+                ? "Atualize os dados do veículo."
+                : "Informações completas do veículo."}
             </DialogDescription>
           </DialogHeader>
-
           {dialogVeiculo && (
             <form onSubmit={handleSaveEdit} className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="veiculo-id">ID</Label>
-                  <Input id="veiculo-id" value={dialogVeiculo.id} disabled />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="veiculo-placa">Placa</Label>
+                  <Label>Placa</Label>
                   <Input
-                    id="veiculo-placa"
                     value={dialogVeiculo.placa}
                     disabled={dialogMode === "view"}
-                    onChange={(event) =>
-                      setEditForm((prev) =>
-                        prev ? { ...prev, placa: event.target.value } : prev,
+                    onChange={(e) =>
+                      setEditForm((p) =>
+                        p ? { ...p, placa: e.target.value } : p,
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Marca</Label>
+                  <Input
+                    value={dialogVeiculo.marca}
+                    disabled={dialogMode === "view"}
+                    onChange={(e) =>
+                      setEditForm((p) =>
+                        p ? { ...p, marca: e.target.value } : p,
                       )
                     }
                   />
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="veiculo-modelo">Modelo</Label>
-                <Input
-                  id="veiculo-modelo"
-                  value={dialogVeiculo.modelo}
-                  disabled={dialogMode === "view"}
-                  onChange={(event) =>
-                    setEditForm((prev) =>
-                      prev ? { ...prev, modelo: event.target.value } : prev,
-                    )
-                  }
-                />
-              </div>
-
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="veiculo-ano">Ano de fabricação</Label>
+                  <Label>Modelo</Label>
                   <Input
-                    id="veiculo-ano"
+                    value={dialogVeiculo.modelo}
+                    disabled={dialogMode === "view"}
+                    onChange={(e) =>
+                      setEditForm((p) =>
+                        p ? { ...p, modelo: e.target.value } : p,
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Ano</Label>
+                  <Input
                     type="number"
                     value={dialogVeiculo.anoFabricacao}
                     disabled={dialogMode === "view"}
-                    onChange={(event) =>
-                      setEditForm((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              anoFabricacao: Number.parseInt(
-                                event.target.value || "0",
-                                10,
-                              ),
-                            }
-                          : prev,
-                      )
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="veiculo-proprietario">Proprietário</Label>
-                  <Input
-                    id="veiculo-proprietario"
-                    value={dialogVeiculo.proprietario}
-                    disabled={dialogMode === "view"}
-                    onChange={(event) =>
-                      setEditForm((prev) =>
-                        prev
-                          ? { ...prev, proprietario: event.target.value }
-                          : prev,
+                    onChange={(e) =>
+                      setEditForm((p) =>
+                        p ? { ...p, anoFabricacao: Number(e.target.value) } : p,
                       )
                     }
                   />
                 </div>
               </div>
-
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Cobertura</Label>
-                  <Select
+                  <Input
                     value={dialogVeiculo.tipoCobertura}
                     disabled={dialogMode === "view"}
-                    onValueChange={(value: Veiculo["tipoCobertura"]) =>
-                      setEditForm((prev) =>
-                        prev ? { ...prev, tipoCobertura: value } : prev,
+                    onChange={(e) =>
+                      setEditForm((p) =>
+                        p ? { ...p, tipoCobertura: e.target.value } : p,
                       )
                     }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="basica">Básica</SelectItem>
-                      <SelectItem value="completa">Completa</SelectItem>
-                      <SelectItem value="premium">Premium</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  />
                 </div>
-
                 <div className="space-y-2">
                   <Label>Status</Label>
                   <Select
                     value={dialogVeiculo.status}
                     disabled={dialogMode === "view"}
-                    onValueChange={(value: Veiculo["status"]) =>
-                      setEditForm((prev) =>
-                        prev ? { ...prev, status: value } : prev,
-                      )
+                    onValueChange={(v) =>
+                      setEditForm((p) => (p ? { ...p, status: v } : p))
                     }
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione" />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ativo">Ativo</SelectItem>
-                      <SelectItem value="sinistrado">Sinistrado</SelectItem>
-                      <SelectItem value="inativo">Inativo</SelectItem>
+                      <SelectItem value="Ativo">Ativo</SelectItem>
+                      <SelectItem value="Sinistrado">Sinistrado</SelectItem>
+                      <SelectItem value="Inativo">Inativo</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={closeDialog}>
                   Fechar
                 </Button>
                 {dialogMode === "edit" && (
-                  <Button type="submit">Salvar Alterações</Button>
+                  <Button type="submit" disabled={saving}>
+                    {saving ? "Salvando..." : "Salvar Alterações"}
+                  </Button>
                 )}
               </DialogFooter>
             </form>
@@ -548,15 +556,15 @@ export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
             <AlertDialogTitle>Apagar veículo?</AlertDialogTitle>
             <AlertDialogDescription>
               {veiculoToDelete
-                ? `Esta ação removerá o veículo ${veiculoToDelete.placa} da lista atual.`
-                : "Esta ação removerá o veículo da lista atual."}
+                ? `Esta ação removerá o veículo ${veiculoToDelete.placa} permanentemente.`
+                : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-white hover:bg-destructive/90"
-              onClick={handleDeleteVeiculo}
+              onClick={handleDelete}
             >
               Apagar
             </AlertDialogAction>

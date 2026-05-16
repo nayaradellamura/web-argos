@@ -11,7 +11,6 @@ import {
   Clock3,
   KeyRound,
   LogIn,
-  LogOut,
   Mail,
   RefreshCw,
   ShieldCheck,
@@ -20,7 +19,6 @@ import {
   onAuthStateChanged,
   sendPasswordResetEmail,
   signInWithPopup,
-  signOut,
   type User,
 } from "firebase/auth";
 import {
@@ -181,13 +179,6 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
     setError(null);
     setFeedback(null);
     await signInWithPopup(auth, googleProvider);
-  }
-
-  async function handleLogoutAdmin() {
-    await signOut(auth);
-    setAuthUser(null);
-    setIsAdmin(false);
-    setParceiros([]);
   }
 
   async function checkAdminPermission(user: User) {
@@ -498,10 +489,6 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
               Conta atual: {authUser.email}
             </p>
           </div>
-          <Button variant="outline" onClick={handleLogoutAdmin}>
-            <LogOut className="mr-2 h-4 w-4" />
-            Sair
-          </Button>
         </CardContent>
       </Card>
     );
@@ -517,10 +504,6 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
             </div>
             <div>
               <p className="font-medium">Painel de acesso de parceiros</p>
-              <p className="text-sm text-muted-foreground">
-                Lendo somente a coleção users · SSO e e-mail/senha centralizados
-                no mesmo lugar
-              </p>
             </div>
           </div>
 
@@ -540,20 +523,9 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
                 </Badge>
               </Button>
             ))}
-
-            <Button variant="ghost" size="sm" onClick={handleLogoutAdmin}>
-              <LogOut className="mr-2 h-4 w-4" />
-              Sair
-            </Button>
           </div>
         </CardContent>
       </Card>
-
-      <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300">
-        Solicitações de <strong>e-mail/senha</strong> ficam temporariamente em
-        users/email. Ao aprovar, o painel cria o usuário no Authentication, cria
-        users/uid e remove o documento temporário.
-      </div>
 
       {feedback && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-300">
