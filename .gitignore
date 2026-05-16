@@ -15,4 +15,5 @@ node_modules
 .next/
 .DS_Store
 
-echo "firebase-credentials.json" >> .gitignorefirebase-credentials.json
+# Chaves de segurança do Firebase
+firebase-credentials.json
