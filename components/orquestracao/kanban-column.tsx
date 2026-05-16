@@ -125,6 +125,7 @@ function ClaimCardComponent({
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [isQuickVistoriaOpen, setIsQuickVistoriaOpen] = useState(false);
   const [credenciadosDisponiveis, setCredenciadosDisponiveis] = useState<
     string[]
@@ -172,11 +173,17 @@ function ClaimCardComponent({
   }, []);
 
   const handleDragStart = (event: DragEvent<HTMLDivElement>) => {
+    setIsDragging(true);
     event.dataTransfer.setData(
       "application/json",
       JSON.stringify({ cardId: card.id, sourceStageId: stageId }),
     );
     event.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragEnd = () => {
+    setIsDragging(false);
+    onStageDragEnd();
   };
 
   const handleOpenEdit = () => {
@@ -267,9 +274,13 @@ function ClaimCardComponent({
       <Card
         draggable
         onDragStart={handleDragStart}
-        onDragEnd={onStageDragEnd}
+        onDragEnd={handleDragEnd}
         onClick={handleOpenDetails}
-        className="cursor-pointer rounded-lg border-border/60 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md"
+        className={cn(
+          "cursor-pointer rounded-lg border-border/60 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md",
+          isDragging &&
+            "opacity-70 scale-[1.01] shadow-xl ring-1 ring-primary/40 rotate-[0.35deg]",
+        )}
       >
         <CardContent className="space-y-2 p-2.5">
           <div className="flex items-start justify-between gap-2">
@@ -795,8 +806,9 @@ export function KanbanColumn({
         onDrop={handleDrop}
         onDragLeave={onStageDragEnd}
         className={cn(
-          "h-full border-border/60 bg-muted/20 shadow-none transition-colors",
-          isDragOver && "border-primary/50 bg-primary/5",
+          "h-full border-border/60 bg-muted/20 shadow-none transition-all duration-150",
+          isDragOver &&
+            "border-primary/60 bg-primary/10 ring-2 ring-primary/30",
         )}
       >
         <CardHeader className="border-b border-border/50 p-3 pb-3">

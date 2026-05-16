@@ -1,127 +1,187 @@
-"use client"
+"use client";
 
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { useEffect, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Files, UserX, Clock, Wrench, ShieldAlert } from "lucide-react";
 import {
-  TrendingUp,
-  TrendingDown,
-  Clock,
-  AlertTriangle,
-  Brain,
-  FileText,
-} from "lucide-react"
+  type DashboardFilter,
+  type DashboardKpis,
+} from "@/components/dashboard/types";
 
-interface KpiCardProps {
-  title: string
-  value: string
-  subtitle?: string
-  change?: {
-    value: string
-    type: "positive" | "negative" | "neutral"
-  }
-  icon: React.ReactNode
+// ---------------------------------------------------------------------------
+// Configuração ESTÁTICA de cada card — fora do componente para não ser
+// recriada a cada render e evitar divergência SSR vs. CSR (hydration error).
+// ---------------------------------------------------------------------------
+interface CardStaticConfig {
+  filterKey: DashboardFilter;
+  title: string;
+  subtitle: string;
+  Icon: React.ElementType;
+  iconClassName?: string;
   badge?: {
-    text: string
-    variant: "default" | "secondary" | "destructive" | "outline"
-  }
+    text: string;
+    variant: "default" | "secondary" | "destructive" | "outline";
+    className?: string;
+  };
 }
 
-function KpiCard({ title, value, subtitle, change, icon, badge }: KpiCardProps) {
+const CARD_CONFIGS: CardStaticConfig[] = [
+  {
+    filterKey: "total",
+    title: "Total de Sinistros",
+    subtitle: "Volume geral",
+    Icon: Files,
+  },
+  {
+    filterKey: "semVinculo",
+    title: "Aguardando Vínculo",
+    subtitle: "Sem oficina credenciada vinculada",
+    Icon: UserX,
+  },
+  {
+    filterKey: "aguardandoCheckin",
+    title: "Aguardando Check-in",
+    subtitle: "Agendados ou a caminho da oficina",
+    Icon: Clock,
+  },
+  {
+    filterKey: "andamento",
+    title: "Em Andamento",
+    subtitle: "Veículo no pátio / Em análise",
+    Icon: Wrench,
+  },
+  {
+    filterKey: "inconformidades",
+    title: "Inconformidades",
+    subtitle: "Com alertas da IA",
+    Icon: ShieldAlert,
+    iconClassName: "text-orange-600",
+    badge: {
+      text: "Crítico",
+      variant: "secondary",
+      className:
+        "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
+    },
+  },
+];
+
+interface KpiCardProps extends CardStaticConfig {
+  value: string;
+  active: boolean;
+  onClick: (filterKey: DashboardFilter) => void;
+}
+
+function KpiCard({
+  filterKey,
+  title,
+  subtitle,
+  Icon,
+  iconClassName,
+  badge,
+  value,
+  active,
+  onClick,
+}: KpiCardProps) {
+  const handleCardAction = () => onClick?.(filterKey);
+
   return (
-    <Card className="py-4">
-      <CardContent className="flex items-start justify-between">
-        <div className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            {title}
-          </span>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-foreground">{value}</span>
-            {badge && (
-              <Badge variant={badge.variant} className="text-[10px]">
-                {badge.text}
-              </Badge>
+    <Card
+      className={`py-4 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/50 ${
+        active ? "border-primary bg-primary/5 ring-1 ring-primary" : ""
+      }`}
+    >
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={handleCardAction}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            handleCardAction();
+          }
+        }}
+        className="outline-none focus-visible:ring-2 focus-visible:ring-primary/60 rounded-md"
+      >
+        <CardContent className="flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              {title}
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold text-foreground">
+                {value}
+              </span>
+              {badge && (
+                <Badge
+                  variant={badge.variant}
+                  className={`text-[10px] ${badge.className ?? ""}`}
+                >
+                  {badge.text}
+                </Badge>
+              )}
+            </div>
+            {subtitle && (
+              <span className="text-xs text-muted-foreground">{subtitle}</span>
             )}
           </div>
-          {subtitle && (
-            <span className="text-xs text-muted-foreground">{subtitle}</span>
-          )}
-          {change && (
-            <div className="flex items-center gap-1 mt-1">
-              {change.type === "positive" ? (
-                <TrendingUp className="h-3 w-3 text-emerald-600" />
-              ) : change.type === "negative" ? (
-                <TrendingDown className="h-3 w-3 text-red-500" />
-              ) : null}
-              <span
-                className={`text-xs font-medium ${
-                  change.type === "positive"
-                    ? "text-emerald-600"
-                    : change.type === "negative"
-                    ? "text-red-500"
-                    : "text-muted-foreground"
-                }`}
-              >
-                {change.value}
-              </span>
-            </div>
-          )}
-        </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          {icon}
-        </div>
-      </CardContent>
+          <div
+            className={`flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary ${iconClassName ?? ""}`}
+          >
+            <Icon className="h-5 w-5" />
+          </div>
+        </CardContent>
+      </div>
     </Card>
-  )
+  );
 }
 
-export function KpiCards() {
-  const kpis: KpiCardProps[] = [
-    {
-      title: "Volume de Aberturas (Hoje)",
-      value: "147",
-      icon: <FileText className="h-5 w-5" />,
-      change: {
-        value: "+12% vs. ontem",
-        type: "positive",
-      },
-    },
-    {
-      title: "Tempo Medio de Regulacao (SLA)",
-      value: "4.2h",
-      subtitle: "Meta: 6h | Real: 4.2h",
-      icon: <Clock className="h-5 w-5" />,
-      change: {
-        value: "Dentro do SLA",
-        type: "positive",
-      },
-    },
-    {
-      title: "Risco de Fraude Identificado (IA)",
-      value: "1.8%",
-      subtitle: "dos sinistros analisados",
-      icon: <AlertTriangle className="h-5 w-5" />,
-      badge: {
-        text: "Atencao",
-        variant: "destructive",
-      },
-    },
-    {
-      title: "Acuracia Diagnostica da IA",
-      value: "94.2%",
-      subtitle: "Modelo v3.2.1",
-      icon: <Brain className="h-5 w-5" />,
-      change: {
-        value: "+0.8% este mes",
-        type: "positive",
-      },
-    },
-  ]
+interface KpiCardsProps {
+  kpis: DashboardKpis;
+  activeFilter: DashboardFilter | null;
+  onFilterChange: (filter: DashboardFilter) => void;
+}
+
+// Resolve o valor numérico do KPI pela chave, sem criar objetos intermediários.
+function getKpiValue(kpis: DashboardKpis, key: DashboardFilter): string {
+  const map: Record<DashboardFilter, number> = {
+    total: kpis.total,
+    semVinculo: kpis.semVinculo,
+    aguardandoCheckin: kpis.aguardandoCheckin,
+    andamento: kpis.andamento,
+    inconformidades: kpis.inconformidades,
+  };
+  return String(map[key] ?? 0);
+}
+
+export function KpiCards({
+  kpis,
+  activeFilter,
+  onFilterChange,
+}: KpiCardsProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5" />
+    );
+  }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {kpis.map((kpi, index) => (
-        <KpiCard key={index} {...kpi} />
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      {CARD_CONFIGS.map((config) => (
+        <KpiCard
+          key={config.filterKey}
+          {...config}
+          value={getKpiValue(kpis, config.filterKey)}
+          active={activeFilter === config.filterKey}
+          onClick={onFilterChange}
+        />
       ))}
     </div>
-  )
+  );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { AppLayout } from "@/components/layout/app-layout";
 import { LoadingScreen } from "@/components/layout/loading-screen";
 import { logout } from "@/lib/services/auth";
 
@@ -28,5 +29,10 @@ export default function LogoutPage() {
     };
   }, [router]);
 
-  return <LoadingScreen fullScreen message="Saindo..." />;
+  return (
+    <AppLayout>
+      <div className="h-full" />
+      <LoadingScreen fullScreen message="Saindo..." />
+    </AppLayout>
+  );
 }

@@ -1,0 +1,8 @@
+node_modules/
+.next/
+public/
+components/
+hooks/
+styles/
+*.css
+firebase-credentials.json

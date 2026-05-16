@@ -1,74 +1,48 @@
-"use client"
+"use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { AlertTriangle, AlertCircle, Info } from "lucide-react"
+import Link from "next/link";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { AlertTriangle, AlertCircle, Info } from "lucide-react";
+import { type DashboardAlert } from "@/components/dashboard/types";
 
-interface Alert {
-  id: string
-  type: "critical" | "warning" | "info"
-  title: string
-  description: string
-  time: string
+function timeAgo(isoDate?: string, fallback?: string): string {
+  if (!isoDate) return fallback ?? "";
+  const diffMs = Date.now() - new Date(isoDate).getTime();
+  if (isNaN(diffMs) || diffMs < 0) return fallback ?? "";
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 1) return "agora mesmo";
+  if (diffMin < 60) return `há ${diffMin} minuto${diffMin > 1 ? "s" : ""}`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `há ${diffH} hora${diffH > 1 ? "s" : ""}`;
+  const diffD = Math.floor(diffH / 24);
+  return `há ${diffD} dia${diffD > 1 ? "s" : ""}`;
 }
 
-const alerts: Alert[] = [
-  {
-    id: "1",
-    type: "critical",
-    title: "Sinistro #1024",
-    description: "Possivel fraude de dano oculto sinalizado pela IA",
-    time: "2 min atras",
-  },
-  {
-    id: "2",
-    type: "critical",
-    title: "Sinistro #1019",
-    description: "Inconsistencia detectada entre fotos e laudo",
-    time: "15 min atras",
-  },
-  {
-    id: "3",
-    type: "warning",
-    title: "Sinistro #1022",
-    description: "SLA de regulacao proximo do limite",
-    time: "32 min atras",
-  },
-  {
-    id: "4",
-    type: "warning",
-    title: "Oficina Central SP",
-    description: "Taxa de retrabalho acima da media (12%)",
-    time: "1h atras",
-  },
-  {
-    id: "5",
-    type: "info",
-    title: "Modelo IA v3.2.2",
-    description: "Nova versao disponivel para atualizacao",
-    time: "2h atras",
-  },
-]
+interface AlertsFeedProps {
+  alerts: DashboardAlert[];
+}
 
-function AlertIcon({ type }: { type: Alert["type"] }) {
+function AlertIcon({ type }: { type: DashboardAlert["type"] }) {
   switch (type) {
     case "critical":
-      return <AlertTriangle className="h-4 w-4 text-red-500" />
+      return <AlertTriangle className="h-4 w-4 text-red-500" />;
     case "warning":
-      return <AlertCircle className="h-4 w-4 text-amber-500" />
+      return <AlertCircle className="h-4 w-4 text-amber-500" />;
     case "info":
-      return <Info className="h-4 w-4 text-primary" />
+      return <Info className="h-4 w-4 text-primary" />;
   }
 }
 
-function AlertBadge({ type }: { type: Alert["type"] }) {
+function AlertBadge({ type }: { type: DashboardAlert["type"] }) {
   switch (type) {
     case "critical":
       return (
         <Badge variant="destructive" className="text-[10px]">
           Critico
         </Badge>
-      )
+      );
     case "warning":
       return (
         <Badge
@@ -77,19 +51,19 @@ function AlertBadge({ type }: { type: Alert["type"] }) {
         >
           Alerta
         </Badge>
-      )
+      );
     case "info":
       return (
         <Badge variant="secondary" className="text-[10px]">
           Info
         </Badge>
-      )
+      );
   }
 }
 
-export function AlertsFeed() {
+export function AlertsFeed({ alerts }: AlertsFeedProps) {
   return (
-    <Card className="w-full lg:w-[380px]">
+    <Card className="w-full lg:w-95">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base font-semibold">
@@ -123,14 +97,26 @@ export function AlertsFeed() {
                 <p className="text-xs text-muted-foreground line-clamp-2">
                   {alert.description}
                 </p>
-                <span className="text-[10px] text-muted-foreground mt-1 block">
-                  {alert.time}
+                <span className="text-[10px] text-muted-foreground mt-1 block mb-2">
+                  {timeAgo(alert.createdAt, alert.time)}
                 </span>
+                {alert.sinistroId && (
+                  <Button
+                    asChild
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs"
+                  >
+                    <Link href={`/orquestracao/${alert.sinistroId}`}>
+                      Revisar Agora
+                    </Link>
+                  </Button>
+                )}
               </div>
             </div>
           ))}
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }

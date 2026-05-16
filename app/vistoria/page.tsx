@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Image from "next/image";
+import { useEffect, useMemo, useState } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { PageHeader } from "@/components/layout/page-header";
 import {
@@ -8,19 +9,23 @@ import {
   Calendar,
   MapPin,
   Eye,
+  Building2,
   CheckCircle2,
-  Clock,
+  Timer,
   AlertTriangle,
   Plus,
   FileText,
   FileAudio,
   Image as ImageIcon,
+  Download,
   ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { LoadingScreen } from "@/components/layout/loading-screen";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -39,10 +44,24 @@ import {
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import {
   getCredenciadosDisponiveisNomes,
   getSinistrosStore,
   getVistoriasVinculadasStore,
 } from "@/lib/business-rules-store";
+
+type LifecycleTab =
+  | "pendentes_vinculo"
+  | "em_andamento"
+  | "em_analise"
+  | "concluidas";
 
 interface InspecaoData {
   id: string;
@@ -52,9 +71,14 @@ interface InspecaoData {
   data: string;
   hora: string;
   status: "pendente" | "agendada" | "realizada";
+  startedAt?: string;
   veiculo: string;
   placa: string;
   cliente: string;
+  tipoDano?: string;
+  aprovada?: boolean;
+  aiFraudRisk?: boolean;
+  aiRiskReason?: string;
   laudo?: string;
   pdfLaudoUrl?: string;
   audios?: {
@@ -81,9 +105,13 @@ const mockInspecoes: InspecaoData[] = [
     data: "2026-04-15",
     hora: "14:30",
     status: "agendada",
+    startedAt: "2026-04-15T14:30:00",
     veiculo: "Honda Civic",
     placa: "ABC-1234",
     cliente: "João Silva",
+    tipoDano: "Dano em lateral esquerda",
+    aprovada: false,
+    aiFraudRisk: false,
     laudo:
       "Veículo com avaria na lateral esquerda, incluindo amassamento e risco profundo na porta dianteira. Não foram identificados indícios de danos estruturais no monobloco. Reparo recomendado: funilaria, pintura e alinhamento da porta.",
     pdfLaudoUrl:
@@ -126,9 +154,14 @@ const mockInspecoes: InspecaoData[] = [
     data: "2026-04-12",
     hora: "10:00",
     status: "realizada",
+    startedAt: "2026-04-11T10:00:00",
     veiculo: "Toyota Corolla",
     placa: "XYZ-5678",
     cliente: "Maria Santos",
+    tipoDano: "Quebra total de vidro traseiro",
+    aprovada: false,
+    aiFraudRisk: true,
+    aiRiskReason: "⚠️ Risco de Fraude: divergência entre áudio e imagens",
     laudo:
       "Quebra integral do vidro traseiro com estilhaçamento interno. Não há comprometimento de lanternas ou estrutura de tampa do porta-malas. Reparo recomendado: substituição de vidro e limpeza técnica interna.",
     pdfLaudoUrl:
@@ -155,7 +188,7 @@ const mockInspecoes: InspecaoData[] = [
   {
     id: "VST-003",
     sinistroId: "CLM-125",
-    credenciado: "Repair Masters",
+    credenciado: "",
     local: "Rua do Comércio, 789 - Belo Horizonte, MG",
     data: "2026-04-20",
     hora: "09:00",
@@ -163,6 +196,28 @@ const mockInspecoes: InspecaoData[] = [
     veiculo: "VW Golf",
     placa: "DEF-9012",
     cliente: "Carlos Mendes",
+    tipoDano: "Avaria em para-choque dianteiro",
+    aprovada: false,
+    aiFraudRisk: false,
+  },
+  {
+    id: "VST-004",
+    sinistroId: "CLM-112",
+    credenciado: "AutoPrime Reparos",
+    local: "Limeira - SP",
+    data: "2026-04-10",
+    hora: "08:00",
+    status: "realizada",
+    startedAt: "2026-04-09T08:00:00",
+    veiculo: "Nissan Kicks",
+    placa: "YZA-7890",
+    cliente: "Fernanda Rocha",
+    tipoDano: "Dano em suspensão dianteira",
+    aprovada: true,
+    aiFraudRisk: false,
+    pdfLaudoUrl:
+      "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+    laudo: "Laudo aprovado sem divergências. Reparo autorizado.",
   },
 ];
 
@@ -175,7 +230,8 @@ export default function VistoriaPage() {
     { id: string; veiculo: string; placa: string; cliente: string }[]
   >([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("Todas");
+  const [activeTab, setActiveTab] = useState<LifecycleTab>("pendentes_vinculo");
+  const [isTabLoading, setIsTabLoading] = useState(false);
   const [selectedInspecao, setSelectedInspecao] = useState<InspecaoData | null>(
     null,
   );
@@ -226,9 +282,13 @@ export default function VistoriaPage() {
             data: "",
             hora: "",
             status: vinculada.status,
+            startedAt: new Date().toISOString(),
             veiculo: vinculada.veiculo,
             placa: vinculada.placa,
             cliente: vinculada.cliente || "Não informado",
+            tipoDano: "Dano em análise",
+            aprovada: false,
+            aiFraudRisk: false,
             observacoes:
               "Vistoria vinculada automaticamente pelo menu de Sinistros.",
           });
@@ -274,24 +334,80 @@ export default function VistoriaPage() {
     };
   }, []);
 
-  const filteredInspecoes = inspecoes.filter((inspecao) => {
-    const matchesSearch =
-      inspecao.sinistroId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inspecao.veiculo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inspecao.cliente.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inspecao.credenciado.toLowerCase().includes(searchQuery.toLowerCase());
+  useEffect(() => {
+    setIsTabLoading(true);
 
-    const matchesStatus =
-      statusFilter === "Todas" || inspecao.status === statusFilter;
+    const timeout = window.setTimeout(() => {
+      setIsTabLoading(false);
+    }, 280);
 
-    return matchesSearch && matchesStatus;
-  });
+    return () => window.clearTimeout(timeout);
+  }, [activeTab]);
 
-  const stats = {
-    pendentes: inspecoes.filter((i) => i.status === "pendente").length,
-    agendadas: inspecoes.filter((i) => i.status === "agendada").length,
-    realizadas: inspecoes.filter((i) => i.status === "realizada").length,
+  const getLifecycleForInspecao = (inspecao: InspecaoData): LifecycleTab => {
+    if (!inspecao.credenciado?.trim()) {
+      return "pendentes_vinculo";
+    }
+
+    if (inspecao.status !== "realizada") {
+      return "em_andamento";
+    }
+
+    if (inspecao.aprovada) {
+      return "concluidas";
+    }
+
+    return "em_analise";
   };
+
+  const tabsCount = useMemo(
+    () => ({
+      pendentes_vinculo: inspecoes.filter(
+        (inspecao) => getLifecycleForInspecao(inspecao) === "pendentes_vinculo",
+      ).length,
+      em_andamento: inspecoes.filter(
+        (inspecao) => getLifecycleForInspecao(inspecao) === "em_andamento",
+      ).length,
+      em_analise: inspecoes.filter(
+        (inspecao) => getLifecycleForInspecao(inspecao) === "em_analise",
+      ).length,
+      concluidas: inspecoes.filter(
+        (inspecao) => getLifecycleForInspecao(inspecao) === "concluidas",
+      ).length,
+    }),
+    [inspecoes],
+  );
+
+  const filteredByTabAndSearch = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    return inspecoes.filter((inspecao) => {
+      const lifecycle = getLifecycleForInspecao(inspecao);
+      const matchesTab = lifecycle === activeTab;
+
+      if (!matchesTab) {
+        return false;
+      }
+
+      if (!query) {
+        return true;
+      }
+
+      const searchable = [
+        inspecao.sinistroId,
+        inspecao.veiculo,
+        inspecao.cliente,
+        inspecao.credenciado,
+        inspecao.placa,
+        inspecao.tipoDano,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return searchable.includes(query);
+    });
+  }, [inspecoes, activeTab, searchQuery]);
 
   const getStatusConfig = (status: string) => {
     switch (status) {
@@ -359,10 +475,14 @@ export default function VistoriaPage() {
       local: "",
       data: "",
       hora: "",
+      startedAt: new Date().toISOString(),
       status: formData.status,
       veiculo: sinistroInfo.veiculo,
       placa: sinistroInfo.placa,
       cliente: sinistroInfo.cliente,
+      tipoDano: "Dano em análise",
+      aprovada: false,
+      aiFraudRisk: false,
     };
 
     setInspecoes([...inspecoes, novaVistoria]);
@@ -373,6 +493,224 @@ export default function VistoriaPage() {
       credenciado: "",
       status: "agendada",
     });
+  };
+
+  const getElapsedTimeLabel = (inspecao: InspecaoData) => {
+    const fallbackFromDate =
+      inspecao.data && inspecao.hora ? `${inspecao.data}T${inspecao.hora}` : "";
+    const rawStart = inspecao.startedAt || fallbackFromDate;
+
+    if (!rawStart) {
+      return "Sem início registrado";
+    }
+
+    const startDate = new Date(rawStart);
+
+    if (Number.isNaN(startDate.getTime())) {
+      return "Sem início registrado";
+    }
+
+    const diffMs = Date.now() - startDate.getTime();
+    const totalHours = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+
+    if (days > 0) {
+      return `${days}d ${hours}h corridos`;
+    }
+
+    return `${hours}h corridas`;
+  };
+
+  const renderTabSkeleton = () => {
+    if (filteredByTabAndSearch.length === 0) {
+      return renderEmptyState("pendentes_vinculo");
+    }
+  };
+
+  const renderEmptyState = (tab: LifecycleTab) => {
+    const configs: Record<
+      LifecycleTab,
+      { title: string; description: string; icon: React.ReactNode }
+    > = {
+      pendentes_vinculo: {
+        title: "Sem vistorias pendentes de vínculo",
+        description:
+          "Todas as vistorias desta busca já possuem oficina vinculada ou não há itens nesta etapa.",
+        icon: <AlertTriangle className="h-5 w-5" />,
+      },
+      em_andamento: {
+        title: "Nenhuma vistoria em andamento",
+        description:
+          "No momento não existem vistorias sendo executadas na oficina para os filtros aplicados.",
+        icon: <Timer className="h-5 w-5" />,
+      },
+      em_analise: {
+        title: "Nenhuma vistoria em análise",
+        description:
+          "Não há laudos pendentes de revisão técnica/IA nesta seleção.",
+        icon: <FileText className="h-5 w-5" />,
+      },
+      concluidas: {
+        title: "Nenhuma vistoria concluída",
+        description:
+          "Não existem vistorias aprovadas com laudo final disponível para download.",
+        icon: <CheckCircle2 className="h-5 w-5" />,
+      },
+    };
+
+    const config = configs[tab];
+
+    return (
+      <Card>
+        <CardContent>
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">{config.icon}</EmptyMedia>
+              <EmptyTitle>{config.title}</EmptyTitle>
+              <EmptyDescription>{config.description}</EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent />
+          </Empty>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const renderInspectionCards = (tab: LifecycleTab) => {
+    if (filteredByTabAndSearch.length === 0) {
+      return renderEmptyState(tab);
+    }
+
+    return (
+      <div className="space-y-3">
+        {filteredByTabAndSearch.map((inspecao) => {
+          const statusConfig = getStatusConfig(inspecao.status);
+          const StatusIcon = statusConfig.icon;
+          const showIaRiskHighlight =
+            tab === "em_analise" && Boolean(inspecao.aiFraudRisk);
+
+          return (
+            <Card
+              key={inspecao.id}
+              className={cn(
+                "transition-shadow hover:shadow-md",
+                showIaRiskHighlight &&
+                  "border-red-300 bg-red-50/40 dark:border-red-900/40 dark:bg-red-950/10",
+              )}
+            >
+              <CardContent className="pt-6">
+                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                  <div className="flex-1 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-lg font-semibold">
+                            {inspecao.sinistroId}
+                          </span>
+                          <Badge
+                            className={cn(
+                              "inline-flex gap-1",
+                              statusConfig.color,
+                            )}
+                          >
+                            <StatusIcon className="h-3 w-3" />
+                            {statusConfig.label}
+                          </Badge>
+                          {showIaRiskHighlight && (
+                            <Badge variant="destructive">
+                              ⚠️ Risco de Fraude
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {inspecao.veiculo} • {inspecao.placa}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Building2 className="h-4 w-4" />
+                        <span>
+                          {inspecao.credenciado || "Aguardando vínculo"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <MapPin className="h-4 w-4" />
+                        <span>{inspecao.local || "Local não informado"}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Calendar className="h-4 w-4" />
+                        <span>
+                          {formatarDataHora(inspecao.data, inspecao.hora)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <span className="font-medium text-foreground">
+                          Cliente:
+                        </span>
+                        <span>{inspecao.cliente}</span>
+                      </div>
+                      {tab === "em_andamento" && (
+                        <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
+                          <Timer className="h-4 w-4" />
+                          <span className="text-sm font-medium">
+                            Tempo corrido: {getElapsedTimeLabel(inspecao)}
+                          </span>
+                        </div>
+                      )}
+                      {tab === "em_analise" && inspecao.aiRiskReason && (
+                        <p className="text-sm font-medium text-red-700 dark:text-red-300">
+                          {inspecao.aiRiskReason}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="w-full sm:w-auto">
+                    {tab === "concluidas" ? (
+                      <Button
+                        asChild
+                        className="w-full gap-2 sm:w-auto"
+                        variant="outline"
+                        disabled={!inspecao.pdfLaudoUrl}
+                      >
+                        <a
+                          href={inspecao.pdfLaudoUrl || "#"}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <Download className="h-4 w-4" />
+                          Baixar PDF
+                        </a>
+                      </Button>
+                    ) : tab === "em_analise" ? (
+                      <Button
+                        className="w-full gap-2 sm:w-auto"
+                        onClick={() => setSelectedInspecao(inspecao)}
+                      >
+                        <Eye className="h-4 w-4" />
+                        Revisar Laudo e IA
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        className="w-full gap-2 sm:w-auto"
+                        onClick={() => setSelectedInspecao(inspecao)}
+                      >
+                        <Eye className="h-4 w-4" />
+                        Detalhes
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -392,154 +730,118 @@ export default function VistoriaPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Pendentes
+                Pendentes de vínculo
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.pendentes}</div>
+              <div className="text-2xl font-bold">
+                {tabsCount.pendentes_vinculo}
+              </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Agendadas
+                Em andamento
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.agendadas}</div>
+              <div className="text-2xl font-bold">{tabsCount.em_andamento}</div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Realizadas
+                Em análise
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.realizadas}</div>
+              <div className="text-2xl font-bold">{tabsCount.em_analise}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Concluídas
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{tabsCount.concluidas}</div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-1 gaps-2">
-            <div className="relative flex-1">
+        <Card>
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base font-semibold">
+              Lifecycle de Vistorias
+            </CardTitle>
+            <div className="relative w-full">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar sinistro, veículo, cliente ou credenciado..."
+                placeholder="Buscar por sinistro, veículo, placa, cliente, tipo de dano ou oficina..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
               />
             </div>
-          </div>
+          </CardHeader>
 
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-40">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Todas">Todas</SelectItem>
-              <SelectItem value="pendente">Pendentes</SelectItem>
-              <SelectItem value="agendada">Agendadas</SelectItem>
-              <SelectItem value="realizada">Realizadas</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Inspecões List */}
-        <div className="space-y-3">
-          {filteredInspecoes.length === 0 ? (
-            <Card>
-              <CardContent className="flex h-32 items-center justify-center">
-                <p className="text-sm text-muted-foreground">
-                  Nenhuma vistoria encontrada
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            filteredInspecoes.map((inspecao) => {
-              const statusConfig = getStatusConfig(inspecao.status);
-              const StatusIcon = statusConfig.icon;
-
-              return (
-                <Card
-                  key={inspecao.id}
-                  className="hover:shadow-md transition-shadow"
+          <CardContent>
+            <Tabs
+              value={activeTab}
+              onValueChange={(value) => setActiveTab(value as LifecycleTab)}
+              className="space-y-4"
+            >
+              <TabsList className="h-auto w-full flex-wrap justify-start gap-2 bg-transparent p-0">
+                <TabsTrigger
+                  value="pendentes_vinculo"
+                  className="h-9 rounded-md border border-border bg-muted/40 px-3"
                 >
-                  <CardContent className="pt-6">
-                    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-                      <div className="flex-1 space-y-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-lg font-semibold">
-                                {inspecao.sinistroId}
-                              </span>
-                              <Badge
-                                className={cn(
-                                  "inline-flex gap-1",
-                                  statusConfig.color,
-                                )}
-                              >
-                                <StatusIcon className="h-3 w-3" />
-                                {statusConfig.label}
-                              </Badge>
-                            </div>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                              {inspecao.veiculo} • {inspecao.placa}
-                            </p>
-                          </div>
-                        </div>
+                  Pendentes de Vínculo ({tabsCount.pendentes_vinculo})
+                </TabsTrigger>
+                <TabsTrigger
+                  value="em_andamento"
+                  className="h-9 rounded-md border border-border bg-muted/40 px-3"
+                >
+                  Em Andamento ({tabsCount.em_andamento})
+                </TabsTrigger>
+                <TabsTrigger
+                  value="em_analise"
+                  className="h-9 rounded-md border border-border bg-muted/40 px-3"
+                >
+                  Em Análise ({tabsCount.em_analise})
+                </TabsTrigger>
+                <TabsTrigger
+                  value="concluidas"
+                  className="h-9 rounded-md border border-border bg-muted/40 px-3"
+                >
+                  Concluídas ({tabsCount.concluidas})
+                </TabsTrigger>
+              </TabsList>
 
-                        <div className="space-y-2 text-sm">
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <Building2Icon className="h-4 w-4" />
-                            <span>{inspecao.credenciado}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <MapPin className="h-4 w-4" />
-                            <span>{inspecao.local}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <Calendar className="h-4 w-4" />
-                            <span>
-                              {formatarDataHora(inspecao.data, inspecao.hora)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <span className="font-medium text-foreground">
-                              Cliente:
-                            </span>
-                            <span>{inspecao.cliente}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="w-full sm:w-auto">
-                        <Button
-                          variant="outline"
-                          className="w-full gap-2 sm:w-auto"
-                          onClick={() => setSelectedInspecao(inspecao)}
-                        >
-                          <Eye className="h-4 w-4" />
-                          Detalhes
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })
-          )}
-        </div>
+              <TabsContent value="pendentes_vinculo" className="mt-0">
+                {renderInspectionCards("pendentes_vinculo")}
+              </TabsContent>
+              <TabsContent value="em_andamento" className="mt-0">
+                {renderInspectionCards("em_andamento")}
+              </TabsContent>
+              <TabsContent value="em_analise" className="mt-0">
+                {renderInspectionCards("em_analise")}
+              </TabsContent>
+              <TabsContent value="concluidas" className="mt-0">
+                {renderInspectionCards("concluidas")}
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Modal de Detalhes */}
@@ -865,27 +1167,54 @@ export default function VistoriaPage() {
           </form>
         </DialogContent>
       </Dialog>
-    </AppLayout>
-  );
-}
 
-// Icon component
-function Building2Icon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-      <polyline points="9 22 9 12 15 12 15 22" />
-    </svg>
+      {/* Overlay de carregamento */}
+      {isTabLoading && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+          <div className="flex flex-col items-center gap-6 rounded-lg bg-white p-8 shadow-lg">
+            {/* Logo ARGOS */}
+            <div className="flex items-center gap-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-white">
+                <Image
+                  src="/icon.svg"
+                  alt="ARGOS"
+                  width={24}
+                  height={24}
+                  className="h-6 w-6"
+                />
+              </div>
+              <span className="text-lg font-bold text-foreground">ARGOS</span>
+            </div>
+
+            {/* Spinner */}
+            <svg
+              className="h-6 w-6 animate-spin text-primary"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+              />
+            </svg>
+
+            {/* Message */}
+            <span className="text-sm text-muted-foreground">
+              Carregando vistorias...
+            </span>
+          </div>
+        </div>
+      )}
+    </AppLayout>
   );
 }
