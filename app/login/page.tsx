@@ -2,7 +2,8 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Eye } from "lucide-react";
+import { ArrowRight, Eye, EyeOff } from "lucide-react";
+import { FirebaseError } from "firebase/app";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -13,15 +14,65 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { login, loginWithGoogle } from "@/lib/services/auth";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const getLoginErrorMessage = (err: unknown) => {
+    if (!(err instanceof FirebaseError)) {
+      return "Não foi possível entrar agora. Tente novamente.";
+    }
+
+    switch (err.code) {
+      case "auth/invalid-email":
+        return "O formato do e-mail é inválido.";
+      case "auth/user-disabled":
+        return "Sua conta está desativada.";
+      case "auth/too-many-requests":
+        return "Muitas tentativas. Aguarde alguns minutos e tente novamente.";
+      case "auth/network-request-failed":
+        return "Falha de conexão. Verifique sua internet.";
+      case "auth/invalid-credential":
+      case "auth/invalid-login-credentials":
+        return "E-mail ou senha incorretos, ou esta conta usa login com Google.";
+      default:
+        return "Não foi possível entrar agora. Tente novamente.";
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setError("");
+    setLoading(true);
+
+    try {
+      await loginWithGoogle();
+      router.push("/dashboard");
+    } catch {
+      setError("Não foi possível entrar com Google.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    router.push("/dashboard");
+    setError("");
+    setLoading(true);
+
+    try {
+      await login(email, password);
+      router.push("/dashboard");
+    } catch (err: unknown) {
+      setError(getLoginErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -52,29 +103,63 @@ export default function LoginPage() {
                     id="email"
                     type="email"
                     value={email}
-                    onChange={(event) => setEmail(event.target.value)}
+                    onChange={(e) => setEmail(e.target.value)}
                     placeholder="seu.email@empresa.com"
                     className="h-11 rounded-xl bg-white"
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    placeholder="Digite sua senha"
-                    className="h-11 rounded-xl bg-white"
-                    required
-                  />
+                  <Label htmlFor="password">Senha</Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Digite sua senha"
+                      className="h-11 rounded-xl bg-white pr-11"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((value) => !value)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      aria-label={
+                        showPassword ? "Ocultar senha" : "Mostrar senha"
+                      }
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
+
+                {/* Mensagem de erro */}
+                {error && (
+                  <p className="text-sm font-medium text-red-500">{error}</p>
+                )}
+
                 <Button
                   type="submit"
+                  disabled={loading}
                   className="h-11 w-full rounded-xl text-sm font-semibold shadow-lg shadow-primary/20"
                 >
-                  Entrar
+                  {loading ? "Entrando..." : "Entrar"}
                   <ArrowRight className="h-4 w-4" />
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={loading}
+                  onClick={handleGoogleLogin}
+                  className="h-11 w-full rounded-xl text-sm font-semibold"
+                >
+                  Entrar com Google
                 </Button>
               </form>
             </CardContent>

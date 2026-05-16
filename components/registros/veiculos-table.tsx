@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   MoreHorizontal,
   Eye,
@@ -56,110 +56,47 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  type Veiculo,
+  getVeiculos,
+  updateVeiculo,
+  deleteVeiculo,
+} from "@/lib/services/registros";
 
-interface Veiculo {
-  id: string;
-  placa: string;
-  modelo: string;
-  anoFabricacao: number;
-  proprietario: string;
-  tipoCobertura: "basica" | "completa" | "premium";
-  status: "ativo" | "sinistrado" | "inativo";
+function getStatusBadge(status: string) {
+  const map: Record<string, { label: string; className: string }> = {
+    Ativo: { label: "Ativo", className: "bg-emerald-100 text-emerald-700" },
+    ativo: { label: "Ativo", className: "bg-emerald-100 text-emerald-700" },
+    sinistrado: { label: "Sinistrado", className: "bg-red-100 text-red-700" },
+    Sinistrado: { label: "Sinistrado", className: "bg-red-100 text-red-700" },
+    inativo: { label: "Inativo", className: "bg-muted text-muted-foreground" },
+    Inativo: { label: "Inativo", className: "bg-muted text-muted-foreground" },
+  };
+  return (
+    map[status] ?? {
+      label: status,
+      className: "bg-muted text-muted-foreground",
+    }
+  );
 }
 
-const veiculosData: Veiculo[] = [
-  {
-    id: "VEI-001",
-    placa: "ABC-1234",
-    modelo: "Honda Civic 2.0",
-    anoFabricacao: 2022,
-    proprietario: "João Silva Santos",
-    tipoCobertura: "completa",
-    status: "ativo",
-  },
-  {
-    id: "VEI-002",
-    placa: "XYZ-5678",
-    modelo: "Toyota Corolla Cross",
-    anoFabricacao: 2023,
-    proprietario: "Maria Oliveira Costa",
-    tipoCobertura: "premium",
-    status: "sinistrado",
-  },
-  {
-    id: "VEI-003",
-    placa: "DEF-9012",
-    modelo: "Volkswagen Polo 1.0",
-    anoFabricacao: 2021,
-    proprietario: "Carlos Eduardo Mendes",
-    tipoCobertura: "basica",
-    status: "ativo",
-  },
-  {
-    id: "VEI-004",
-    placa: "GHI-3456",
-    modelo: "Chevrolet Onix Plus",
-    anoFabricacao: 2022,
-    proprietario: "Ana Paula Ferreira",
-    tipoCobertura: "completa",
-    status: "ativo",
-  },
-  {
-    id: "VEI-005",
-    placa: "JKL-7890",
-    modelo: "Fiat Pulse Impetus",
-    anoFabricacao: 2023,
-    proprietario: "Roberto Almeida Junior",
-    tipoCobertura: "premium",
-    status: "inativo",
-  },
-  {
-    id: "VEI-006",
-    placa: "MNO-1234",
-    modelo: "Hyundai HB20S",
-    anoFabricacao: 2021,
-    proprietario: "Patricia Lima Souza",
-    tipoCobertura: "basica",
-    status: "ativo",
-  },
-  {
-    id: "VEI-007",
-    placa: "PQR-5678",
-    modelo: "Jeep Compass Limited",
-    anoFabricacao: 2024,
-    proprietario: "Fernando Costa Neto",
-    tipoCobertura: "premium",
-    status: "ativo",
-  },
-];
-
-function getCoberturaBadge(cobertura: Veiculo["tipoCobertura"]) {
-  const config = {
+function getCoberturaBadge(cobertura: string) {
+  const map: Record<string, { label: string; className: string }> = {
+    "Roubo e Furto": {
+      label: "Roubo e Furto",
+      className: "bg-muted text-muted-foreground",
+    },
     basica: { label: "Básica", className: "bg-muted text-muted-foreground" },
     completa: { label: "Completa", className: "bg-primary/10 text-primary" },
-    premium: {
-      label: "Premium",
-      className:
-        "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-    },
+    premium: { label: "Premium", className: "bg-amber-100 text-amber-700" },
   };
-  return config[cobertura];
-}
-
-function getStatusBadge(status: Veiculo["status"]) {
-  const config = {
-    ativo: {
-      label: "Ativo",
-      className:
-        "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-    },
-    sinistrado: {
-      label: "Sinistrado",
-      className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-    },
-    inativo: { label: "Inativo", className: "bg-muted text-muted-foreground" },
-  };
-  return config[status];
+  return (
+    map[cobertura] ?? {
+      label: cobertura,
+      className: "bg-muted text-muted-foreground",
+    }
+  );
 }
 
 interface VeiculosTableProps {
@@ -167,21 +104,34 @@ interface VeiculosTableProps {
 }
 
 export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
+  const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
+  const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [veiculos, setVeiculos] = useState(veiculosData);
   const [selectedVeiculo, setSelectedVeiculo] = useState<Veiculo | null>(null);
   const [dialogMode, setDialogMode] = useState<"view" | "edit" | null>(null);
   const [veiculoToDelete, setVeiculoToDelete] = useState<Veiculo | null>(null);
   const [editForm, setEditForm] = useState<Veiculo | null>(null);
+  const [saving, setSaving] = useState(false);
   const itemsPerPage = 5;
 
-  const filteredData = useMemo(() => veiculos.filter(
-    (veiculo) =>
-      veiculo.placa.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      veiculo.modelo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      veiculo.proprietario.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      veiculo.id.toLowerCase().includes(searchQuery.toLowerCase()),
-  ), [veiculos, searchQuery]);
+  useEffect(() => {
+    getVeiculos()
+      .then(setVeiculos)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filteredData = useMemo(
+    () =>
+      veiculos.filter(
+        (v) =>
+          v.placa?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          v.modelo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          v.marca?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          v.proprietario?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          v.id?.toLowerCase().includes(searchQuery.toLowerCase()),
+      ),
+    [veiculos, searchQuery],
+  );
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage));
   const safeCurrentPage = Math.min(currentPage, totalPages);
@@ -191,133 +141,143 @@ export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
     startIndex + itemsPerPage,
   );
 
-  const openViewDialog = (veiculo: Veiculo) => {
-    setSelectedVeiculo(veiculo);
+  const openViewDialog = (v: Veiculo) => {
+    setSelectedVeiculo(v);
     setEditForm(null);
     setDialogMode("view");
   };
-
-  const openEditDialog = (veiculo: Veiculo) => {
-    setSelectedVeiculo(veiculo);
-    setEditForm(veiculo);
+  const openEditDialog = (v: Veiculo) => {
+    setSelectedVeiculo(v);
+    setEditForm(v);
     setDialogMode("edit");
   };
-
   const closeDialog = () => {
     setSelectedVeiculo(null);
     setEditForm(null);
     setDialogMode(null);
   };
 
-  const handleSaveEdit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
+  const handleSaveEdit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
     if (!editForm) return;
-
-    setVeiculos((current) =>
-      current.map((veiculo) =>
-        veiculo.id === editForm.id ? editForm : veiculo,
-      ),
-    );
-
-    closeDialog();
+    setSaving(true);
+    try {
+      await updateVeiculo(editForm.id, editForm);
+      setVeiculos((prev) =>
+        prev.map((v) => (v.id === editForm.id ? editForm : v)),
+      );
+      closeDialog();
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDeleteVeiculo = () => {
+  const handleDelete = async () => {
     if (!veiculoToDelete) return;
-
-    setVeiculos((current) =>
-      current.filter((veiculo) => veiculo.id !== veiculoToDelete.id),
-    );
+    await deleteVeiculo(veiculoToDelete.id);
+    setVeiculos((prev) => prev.filter((v) => v.id !== veiculoToDelete.id));
     setVeiculoToDelete(null);
   };
 
   const dialogVeiculo = dialogMode === "edit" ? editForm : selectedVeiculo;
 
+  if (loading) {
+    return (
+      <Card className="border-0 shadow-sm p-4 space-y-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full rounded-lg bg-muted/70" />
+        ))}
+      </Card>
+    );
+  }
+
   return (
     <>
-    <Card className="border-0 shadow-sm">
-      <div className="overflow-x-auto">
-        <Table className="min-w-[900px]">
-          <TableHeader>
-            <TableRow className="bg-muted/50 hover:bg-muted/50">
-              <TableHead className="font-semibold">ID</TableHead>
-              <TableHead className="font-semibold">Placa</TableHead>
-              <TableHead className="font-semibold">Modelo</TableHead>
-              <TableHead className="font-semibold">Ano</TableHead>
-              <TableHead className="font-semibold">Proprietário</TableHead>
-              <TableHead className="font-semibold">Cobertura</TableHead>
-              <TableHead className="font-semibold">Status</TableHead>
-              <TableHead className="w-12"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {paginatedData.map((veiculo) => {
-              const coberturaBadge = getCoberturaBadge(veiculo.tipoCobertura);
-              const statusBadge = getStatusBadge(veiculo.status);
-
-              return (
-                <TableRow key={veiculo.id}>
-                  <TableCell className="font-medium text-primary">
-                    {veiculo.id}
-                  </TableCell>
-                  <TableCell className="font-mono font-medium">
-                    {veiculo.placa}
-                  </TableCell>
-                  <TableCell>{veiculo.modelo}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {veiculo.anoFabricacao}
-                  </TableCell>
-                  <TableCell>{veiculo.proprietario}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="secondary"
-                      className={coberturaBadge.className}
-                    >
-                      {coberturaBadge.label}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="secondary"
-                      className={statusBadge.className}
-                    >
-                      {statusBadge.label}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Abrir menu</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => openViewDialog(veiculo)}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          Visualizar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => openEditDialog(veiculo)}>
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          variant="destructive"
-                          onClick={() => setVeiculoToDelete(veiculo)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Apagar
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+      <Card className="border-0 shadow-sm">
+        <div className="overflow-x-auto">
+          <Table className="min-w-[900px]">
+            <TableHeader>
+              <TableRow className="bg-muted/50 hover:bg-muted/50">
+                <TableHead className="font-semibold">ID</TableHead>
+                <TableHead className="font-semibold">Placa</TableHead>
+                <TableHead className="font-semibold">Marca / Modelo</TableHead>
+                <TableHead className="font-semibold">Ano</TableHead>
+                <TableHead className="font-semibold">Proprietário</TableHead>
+                <TableHead className="font-semibold">Cobertura</TableHead>
+                <TableHead className="font-semibold">Status</TableHead>
+                <TableHead className="w-12" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paginatedData.map((veiculo) => {
+                const status = getStatusBadge(veiculo.status);
+                const cobertura = getCoberturaBadge(veiculo.tipoCobertura);
+                return (
+                  <TableRow key={veiculo.id}>
+                    <TableCell className="font-medium text-primary">
+                      {veiculo.id}
+                    </TableCell>
+                    <TableCell className="font-mono font-medium">
+                      {veiculo.placa}
+                    </TableCell>
+                    <TableCell>
+                      {veiculo.marca} {veiculo.modelo}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {veiculo.anoFabricacao}
+                    </TableCell>
+                    <TableCell>{veiculo.proprietario}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="secondary"
+                        className={cobertura.className}
+                      >
+                        {cobertura.label}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className={status.className}>
+                        {status.label}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => openViewDialog(veiculo)}
+                          >
+                            <Eye className="mr-2 h-4 w-4" /> Visualizar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => openEditDialog(veiculo)}
+                          >
+                            <Pencil className="mr-2 h-4 w-4" /> Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onClick={() => setVeiculoToDelete(veiculo)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" /> Apagar
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
 
         <div className="flex items-center justify-between border-t px-4 py-3">
           <p className="text-sm text-muted-foreground">
@@ -334,7 +294,6 @@ export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
               disabled={safeCurrentPage === 1}
             >
               <ChevronsLeft className="h-4 w-4" />
-              <span className="sr-only">Primeira página</span>
             </Button>
             <Button
               variant="outline"
@@ -344,7 +303,6 @@ export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
               disabled={safeCurrentPage === 1}
             >
               <ChevronLeft className="h-4 w-4" />
-              <span className="sr-only">Página anterior</span>
             </Button>
             <span className="px-3 text-sm text-muted-foreground">
               Página {safeCurrentPage} de {totalPages}
@@ -357,7 +315,6 @@ export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
               disabled={safeCurrentPage === totalPages}
             >
               <ChevronRight className="h-4 w-4" />
-              <span className="sr-only">Próxima página</span>
             </Button>
             <Button
               variant="outline"
@@ -367,172 +324,153 @@ export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
               disabled={safeCurrentPage === totalPages}
             >
               <ChevronsRight className="h-4 w-4" />
-              <span className="sr-only">Última página</span>
             </Button>
           </div>
         </div>
-      </div>
-    </Card>
+      </Card>
 
-    <Dialog open={dialogMode !== null} onOpenChange={(open) => !open && closeDialog()}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>
-            {dialogMode === "edit" ? "Editar Veículo" : "Visualizar Veículo"}
-          </DialogTitle>
-          <DialogDescription>
-            {dialogMode === "edit"
-              ? "Atualize os dados do veículo selecionado."
-              : "Confira as informações completas do veículo selecionado."}
-          </DialogDescription>
-        </DialogHeader>
-
-        {dialogVeiculo && (
-          <form onSubmit={handleSaveEdit} className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="veiculo-id">ID</Label>
-                <Input id="veiculo-id" value={dialogVeiculo.id} disabled />
+      <Dialog
+        open={dialogMode !== null}
+        onOpenChange={(open) => !open && closeDialog()}
+      >
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>
+              {dialogMode === "edit" ? "Editar Veículo" : "Visualizar Veículo"}
+            </DialogTitle>
+            <DialogDescription>
+              {dialogMode === "edit"
+                ? "Atualize os dados do veículo."
+                : "Informações completas do veículo."}
+            </DialogDescription>
+          </DialogHeader>
+          {dialogVeiculo && (
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Placa</Label>
+                  <Input
+                    value={dialogVeiculo.placa}
+                    disabled={dialogMode === "view"}
+                    onChange={(e) =>
+                      setEditForm((p) =>
+                        p ? { ...p, placa: e.target.value } : p,
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Marca</Label>
+                  <Input
+                    value={dialogVeiculo.marca}
+                    disabled={dialogMode === "view"}
+                    onChange={(e) =>
+                      setEditForm((p) =>
+                        p ? { ...p, marca: e.target.value } : p,
+                      )
+                    }
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="veiculo-placa">Placa</Label>
-                <Input
-                  id="veiculo-placa"
-                  value={dialogVeiculo.placa}
-                  disabled={dialogMode === "view"}
-                  onChange={(event) =>
-                    setEditForm((prev) =>
-                      prev ? { ...prev, placa: event.target.value } : prev,
-                    )
-                  }
-                />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Modelo</Label>
+                  <Input
+                    value={dialogVeiculo.modelo}
+                    disabled={dialogMode === "view"}
+                    onChange={(e) =>
+                      setEditForm((p) =>
+                        p ? { ...p, modelo: e.target.value } : p,
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Ano</Label>
+                  <Input
+                    type="number"
+                    value={dialogVeiculo.anoFabricacao}
+                    disabled={dialogMode === "view"}
+                    onChange={(e) =>
+                      setEditForm((p) =>
+                        p ? { ...p, anoFabricacao: Number(e.target.value) } : p,
+                      )
+                    }
+                  />
+                </div>
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="veiculo-modelo">Modelo</Label>
-              <Input
-                id="veiculo-modelo"
-                value={dialogVeiculo.modelo}
-                disabled={dialogMode === "view"}
-                onChange={(event) =>
-                  setEditForm((prev) =>
-                    prev ? { ...prev, modelo: event.target.value } : prev,
-                  )
-                }
-              />
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="veiculo-ano">Ano de fabricação</Label>
-                <Input
-                  id="veiculo-ano"
-                  type="number"
-                  value={dialogVeiculo.anoFabricacao}
-                  disabled={dialogMode === "view"}
-                  onChange={(event) =>
-                    setEditForm((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            anoFabricacao: Number.parseInt(event.target.value || "0", 10),
-                          }
-                        : prev,
-                    )
-                  }
-                />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Cobertura</Label>
+                  <Input
+                    value={dialogVeiculo.tipoCobertura}
+                    disabled={dialogMode === "view"}
+                    onChange={(e) =>
+                      setEditForm((p) =>
+                        p ? { ...p, tipoCobertura: e.target.value } : p,
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select
+                    value={dialogVeiculo.status}
+                    disabled={dialogMode === "view"}
+                    onValueChange={(v) =>
+                      setEditForm((p) => (p ? { ...p, status: v } : p))
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Ativo">Ativo</SelectItem>
+                      <SelectItem value="Sinistrado">Sinistrado</SelectItem>
+                      <SelectItem value="Inativo">Inativo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="veiculo-proprietario">Proprietário</Label>
-                <Input
-                  id="veiculo-proprietario"
-                  value={dialogVeiculo.proprietario}
-                  disabled={dialogMode === "view"}
-                  onChange={(event) =>
-                    setEditForm((prev) =>
-                      prev ? { ...prev, proprietario: event.target.value } : prev,
-                    )
-                  }
-                />
-              </div>
-            </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={closeDialog}>
+                  Fechar
+                </Button>
+                {dialogMode === "edit" && (
+                  <Button type="submit" disabled={saving}>
+                    {saving ? "Salvando..." : "Salvar Alterações"}
+                  </Button>
+                )}
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Cobertura</Label>
-                <Select
-                  value={dialogVeiculo.tipoCobertura}
-                  disabled={dialogMode === "view"}
-                  onValueChange={(value: Veiculo["tipoCobertura"]) =>
-                    setEditForm((prev) =>
-                      prev ? { ...prev, tipoCobertura: value } : prev,
-                    )
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="basica">Básica</SelectItem>
-                    <SelectItem value="completa">Completa</SelectItem>
-                    <SelectItem value="premium">Premium</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select
-                  value={dialogVeiculo.status}
-                  disabled={dialogMode === "view"}
-                  onValueChange={(value: Veiculo["status"]) =>
-                    setEditForm((prev) =>
-                      prev ? { ...prev, status: value } : prev,
-                    )
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ativo">Ativo</SelectItem>
-                    <SelectItem value="sinistrado">Sinistrado</SelectItem>
-                    <SelectItem value="inativo">Inativo</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={closeDialog}>
-                Fechar
-              </Button>
-              {dialogMode === "edit" && <Button type="submit">Salvar Alterações</Button>}
-            </DialogFooter>
-          </form>
-        )}
-      </DialogContent>
-    </Dialog>
-
-    <AlertDialog open={veiculoToDelete !== null} onOpenChange={(open) => !open && setVeiculoToDelete(null)}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Apagar veículo?</AlertDialogTitle>
-          <AlertDialogDescription>
-            {veiculoToDelete
-              ? `Esta ação removerá o veículo ${veiculoToDelete.placa} da lista atual.`
-              : "Esta ação removerá o veículo da lista atual."}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <AlertDialogAction className="bg-destructive text-white hover:bg-destructive/90" onClick={handleDeleteVeiculo}>
-            Apagar
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      <AlertDialog
+        open={veiculoToDelete !== null}
+        onOpenChange={(open) => !open && setVeiculoToDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apagar veículo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {veiculoToDelete
+                ? `Esta ação removerá o veículo ${veiculoToDelete.placa} permanentemente.`
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={handleDelete}
+            >
+              Apagar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
