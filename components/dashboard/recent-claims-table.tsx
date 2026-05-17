@@ -161,7 +161,7 @@ export function RecentClaimsTable({
           <Input
             value={searchQuery}
             onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Busca rápida por placa ou ID..."
+            placeholder="Busca rápida por ID ou Placa..."
             className="h-9"
           />
         </div>

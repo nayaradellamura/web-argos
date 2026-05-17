@@ -113,6 +113,7 @@ export default function DashboardPage() {
   // useEffect para sincronizar com a API quando mudam página, filtro ou busca
   useEffect(() => {
     let isMounted = true;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     const fetchDashboardData = async () => {
       const isFirstLoad = isInitialLoading;
@@ -131,20 +132,23 @@ export default function DashboardPage() {
         if (activeFilter && activeFilter !== "total") {
           params.set("filter", activeFilter);
         }
-        if (searchQuery.trim()) {
-          params.set("search", searchQuery.trim());
+        const normalizedSearch = searchQuery.toUpperCase().trim();
+        if (normalizedSearch) {
+          params.set("search", normalizedSearch);
         }
 
         const url = `/api/dashboard?${params.toString()}`;
         const response = await fetch(url);
 
         if (!response.ok) {
+          const errorBody = await response.json().catch(() => ({}));
           console.error("Falha ao carregar dados do dashboard", {
             status: response.status,
             statusText: response.statusText,
+            details: errorBody,
             page: currentPage,
             filter: activeFilter,
-            search: searchQuery,
+            search: normalizedSearch,
           });
 
           if (!isMounted) {
@@ -224,7 +228,7 @@ export default function DashboardPage() {
           error,
           page: currentPage,
           filter: activeFilter,
-          search: searchQuery,
+          search: searchQuery.toUpperCase().trim(),
         });
 
         setRecentClaims([]);
@@ -237,9 +241,14 @@ export default function DashboardPage() {
       }
     };
 
-    void fetchDashboardData();
+    timeoutId = setTimeout(() => {
+      void fetchDashboardData();
+    }, 500);
 
     return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       isMounted = false;
     };
   }, [currentPage, activeFilter, searchQuery]);
@@ -247,7 +256,7 @@ export default function DashboardPage() {
   // Reset de página quando filtro ou busca mudam
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeFilter, searchQuery]);
+  }, [activeFilter]);
 
   // Handler para mudança de filtro
   const handleFilterChange = (filter: DashboardFilter) => {
@@ -258,6 +267,7 @@ export default function DashboardPage() {
 
   // Handler para busca
   const handleSearchChange = (query: string) => {
+    setCurrentPage(1);
     setSearchQuery(query);
   };
 

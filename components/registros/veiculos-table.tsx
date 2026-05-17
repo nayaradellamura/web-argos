@@ -148,9 +148,15 @@ function getCoberturaBadge(cobertura: string) {
 
 interface VeiculosTableProps {
   searchQuery: string;
+  createdVeiculo?: Veiculo | null;
+  onConsumeCreatedVeiculo?: () => void;
 }
 
-export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
+export function VeiculosTable({
+  searchQuery,
+  createdVeiculo,
+  onConsumeCreatedVeiculo,
+}: VeiculosTableProps) {
   const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
@@ -170,6 +176,19 @@ export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!createdVeiculo) return;
+
+    setVeiculos((prev) => {
+      if (prev.some((item) => item.id === createdVeiculo.id)) {
+        return prev;
+      }
+      return [createdVeiculo, ...prev];
+    });
+    setCurrentPage(1);
+    onConsumeCreatedVeiculo?.();
+  }, [createdVeiculo, onConsumeCreatedVeiculo]);
 
   const normalizeKey = (value: unknown) =>
     String(value ?? "")
@@ -502,15 +521,33 @@ export function VeiculosTable({ searchQuery }: VeiculosTableProps) {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Cobertura</Label>
-                  <Input
+                  <Select
                     value={dialogVeiculo.tipoCobertura}
                     disabled={dialogMode === "view"}
-                    onChange={(e) =>
-                      setEditForm((p) =>
-                        p ? { ...p, tipoCobertura: e.target.value } : p,
-                      )
+                    onValueChange={(v) =>
+                      setEditForm((p) => (p ? { ...p, tipoCobertura: v } : p))
                     }
-                  />
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione a cobertura" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Básica">Básica</SelectItem>
+                      <SelectItem value="Intermediária">
+                        Intermediária
+                      </SelectItem>
+                      <SelectItem value="Completa">Completa</SelectItem>
+                      <SelectItem value="Compreensiva">Compreensiva</SelectItem>
+                      <SelectItem value="Terceiros">Terceiros</SelectItem>
+                      <SelectItem value="Roubo e Furto">
+                        Roubo e Furto
+                      </SelectItem>
+                      <SelectItem value="Premium">Premium</SelectItem>
+                      <SelectItem value="Proteção Total">
+                        Proteção Total
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Status</Label>

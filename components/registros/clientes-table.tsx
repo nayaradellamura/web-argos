@@ -99,9 +99,15 @@ function getStatusBadge(status: string) {
 
 interface ClientesTableProps {
   searchQuery: string;
+  createdCliente?: Cliente | null;
+  onConsumeCreatedCliente?: () => void;
 }
 
-export function ClientesTable({ searchQuery }: ClientesTableProps) {
+export function ClientesTable({
+  searchQuery,
+  createdCliente,
+  onConsumeCreatedCliente,
+}: ClientesTableProps) {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -117,6 +123,19 @@ export function ClientesTable({ searchQuery }: ClientesTableProps) {
       .then(setClientes)
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!createdCliente) return;
+
+    setClientes((prev) => {
+      if (prev.some((item) => item.id === createdCliente.id)) {
+        return prev;
+      }
+      return [createdCliente, ...prev];
+    });
+    setCurrentPage(1);
+    onConsumeCreatedCliente?.();
+  }, [createdCliente, onConsumeCreatedCliente]);
 
   const toSearchText = (value: unknown) => String(value ?? "").toLowerCase();
 
@@ -336,10 +355,6 @@ export function ClientesTable({ searchQuery }: ClientesTableProps) {
           </DialogHeader>
           {dialogCliente && (
             <form onSubmit={handleSaveEdit} className="space-y-4">
-              <div className="space-y-2">
-                <Label>ID</Label>
-                <Input value={dialogCliente.id} disabled />
-              </div>
               <div className="space-y-2">
                 <Label>Nome completo</Label>
                 <Input

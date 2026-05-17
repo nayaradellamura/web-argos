@@ -8,6 +8,37 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
+function ensureDocId(id: unknown, entity: string): string {
+  if (typeof id === "string" && id.trim()) {
+    return id;
+  }
+
+  if (typeof id === "number" && Number.isFinite(id)) {
+    return String(id);
+  }
+
+  throw new Error(`ID inválido para ${entity}: ${String(id)}`);
+}
+
+function sanitizeUpdatePayload<T extends { id?: unknown }>(data: Partial<T>) {
+  const { id: _id, ...payload } = data;
+  return payload;
+}
+
+async function assertApiSuccess(response: Response, action: string) {
+  if (response.ok) return;
+
+  const body = await response.json().catch(() => ({}));
+  const details =
+    typeof body?.details === "string"
+      ? body.details
+      : typeof body?.error === "string"
+        ? body.error
+        : "Erro desconhecido";
+
+  throw new Error(`Falha ao ${action}: ${details}`);
+}
+
 // ─── TIPOS ────────────────────────────────────────────────
 
 export interface Cliente {
@@ -62,52 +93,80 @@ export interface Usuario {
 
 export async function getClientes(): Promise<Cliente[]> {
   const snap = await getDocs(collection(db, "clientes"));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Cliente));
+  return snap.docs.map((d) => ({ ...d.data(), id: d.id }) as Cliente);
 }
 
 export async function updateCliente(
   id: string,
-  data: Partial<Cliente>
+  data: Partial<Cliente>,
 ): Promise<void> {
-  await updateDoc(doc(db, "clientes", id), { ...data });
+  const docId = ensureDocId(id, "cliente");
+  const response = await fetch(`/api/clientes/${encodeURIComponent(docId)}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(sanitizeUpdatePayload(data)),
+  });
+
+  await assertApiSuccess(response, "atualizar cliente");
 }
 
 export async function deleteCliente(id: string): Promise<void> {
-  await deleteDoc(doc(db, "clientes", id));
+  const docId = ensureDocId(id, "cliente");
+  const response = await fetch(`/api/clientes/${encodeURIComponent(docId)}`, {
+    method: "DELETE",
+  });
+
+  await assertApiSuccess(response, "excluir cliente");
 }
 
 // ─── VEÍCULOS ─────────────────────────────────────────────
 
 export async function getVeiculos(): Promise<Veiculo[]> {
   const snap = await getDocs(collection(db, "veiculos"));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Veiculo));
+  return snap.docs.map((d) => ({ ...d.data(), id: d.id }) as Veiculo);
 }
 
 export async function updateVeiculo(
   id: string,
-  data: Partial<Veiculo>
+  data: Partial<Veiculo>,
 ): Promise<void> {
-  await updateDoc(doc(db, "veiculos", id), { ...data });
+  const docId = ensureDocId(id, "veículo");
+  const response = await fetch(`/api/veiculos/${encodeURIComponent(docId)}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(sanitizeUpdatePayload(data)),
+  });
+
+  await assertApiSuccess(response, "atualizar veículo");
 }
 
 export async function deleteVeiculo(id: string): Promise<void> {
-  await deleteDoc(doc(db, "veiculos", id));
+  const docId = ensureDocId(id, "veículo");
+  const response = await fetch(`/api/veiculos/${encodeURIComponent(docId)}`, {
+    method: "DELETE",
+  });
+
+  await assertApiSuccess(response, "excluir veículo");
 }
-
-
 
 export async function getUsuarios(): Promise<Usuario[]> {
   const snap = await getDocs(collection(db, "usuarios"));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Usuario));
+  return snap.docs.map((d) => ({ ...d.data(), id: d.id }) as Usuario);
 }
 
 export async function updateUsuario(
   id: string,
-  data: Partial<Usuario>
+  data: Partial<Usuario>,
 ): Promise<void> {
-  await updateDoc(doc(db, "usuarios", id), { ...data });
+  const docId = ensureDocId(id, "usuário");
+  await updateDoc(doc(db, "usuarios", docId), sanitizeUpdatePayload(data));
 }
 
 export async function deleteUsuario(id: string): Promise<void> {
-  await deleteDoc(doc(db, "usuarios", id));
+  const docId = ensureDocId(id, "usuário");
+  await deleteDoc(doc(db, "usuarios", docId));
 }

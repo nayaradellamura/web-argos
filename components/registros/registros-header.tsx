@@ -1,25 +1,16 @@
 "use client";
 
-import { useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 
 interface RegistrosHeaderProps {
   activeTab: string;
   onTabChange: (value: string) => void;
   searchQuery: string;
   onSearchChange: (value: string) => void;
+  onCreateClick: () => void;
 }
 
 export function RegistrosHeader({
@@ -27,8 +18,8 @@ export function RegistrosHeader({
   onTabChange,
   searchQuery,
   onSearchChange,
+  onCreateClick,
 }: RegistrosHeaderProps) {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const showCreateAction = activeTab !== "parceiros";
 
   return (
@@ -59,38 +50,10 @@ export function RegistrosHeader({
         </div>
 
         {showCreateAction && (
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Novo Registro
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-lg">
-              <DialogHeader>
-                <DialogTitle>
-                  {activeTab === "clientes" ? "Novo Cliente" : "Novo Veículo"}
-                </DialogTitle>
-                <DialogDescription>
-                  {activeTab === "clientes"
-                    ? "A criação de clientes permanece disponível nesta tela."
-                    : "A criação de veículos permanece disponível nesta tela."}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="rounded-lg border border-dashed bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-                Se quiser, eu posso recolocar aqui o formulário completo depois.
-              </div>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsDialogOpen(false)}
-                >
-                  Fechar
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <Button onClick={onCreateClick}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Registro
+          </Button>
         )}
       </div>
     </div>

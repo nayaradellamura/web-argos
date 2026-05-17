@@ -1,6 +1,12 @@
-"use client"
+"use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Bar,
   BarChart,
@@ -10,47 +16,66 @@ import {
   ResponsiveContainer,
   Cell,
   LabelList,
-} from "recharts"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+} from "recharts";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
 
 const data = [
-  { name: "Elite Motors", score: 4.9, fill: "hsl(var(--chart-1))" },
-  { name: "AutoPrime", score: 4.7, fill: "hsl(var(--chart-1))" },
-  { name: "CarTech", score: 4.5, fill: "hsl(var(--chart-1))" },
-  { name: "MasterFix", score: 4.3, fill: "hsl(var(--chart-1))" },
-  { name: "ProRepair", score: 4.1, fill: "hsl(var(--chart-1))" },
-]
+  { name: "Elite Motors", score: 4.9 },
+  { name: "AutoPrime", score: 4.7 },
+  { name: "CarTech", score: 4.5 },
+  { name: "MasterFix", score: 4.3 },
+  { name: "ProRepair", score: 4.1 },
+];
 
 const chartConfig = {
   score: {
     label: "Score",
-    color: "hsl(var(--chart-1))",
+    color: "var(--chart-1)",
   },
-}
+};
+
+const barPalette = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+];
 
 export function QualityScoreChart() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base font-semibold">Score de Qualidade Medio</CardTitle>
+        <CardTitle className="text-base font-semibold">
+          Score de Qualidade Medio
+        </CardTitle>
         <CardDescription>Top 5 oficinas com melhor avaliacao</CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig} className="h-[220px] w-full">
+        <ChartContainer config={chartConfig} className="h-55 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={data}
               layout="vertical"
               margin={{ top: 5, right: 40, left: 0, bottom: 5 }}
             >
-              <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+              <CartesianGrid
+                stroke="var(--border)"
+                strokeDasharray="3 3"
+                horizontal={true}
+                vertical={false}
+              />
               <XAxis
                 type="number"
                 domain={[0, 5]}
                 tickCount={6}
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
               />
               <YAxis
                 dataKey="name"
@@ -58,23 +83,23 @@ export function QualityScoreChart() {
                 axisLine={false}
                 tickLine={false}
                 width={90}
-                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
               />
               <ChartTooltip
-                cursor={{ fill: "hsl(var(--muted))", opacity: 0.3 }}
+                cursor={{ fill: "var(--muted)", opacity: 0.3 }}
                 content={<ChartTooltipContent />}
               />
               <Bar dataKey="score" radius={[0, 4, 4, 0]} barSize={24}>
                 {data.map((entry, index) => (
                   <Cell
                     key={`cell-${index}`}
-                    fill={`hsl(var(--primary) / ${1 - index * 0.15})`}
+                    fill={barPalette[index % barPalette.length]}
                   />
                 ))}
                 <LabelList
                   dataKey="score"
                   position="right"
-                  fill="hsl(var(--foreground))"
+                  fill="var(--foreground)"
                   fontSize={12}
                   fontWeight={600}
                   formatter={(value: number) => value.toFixed(1)}
@@ -85,5 +110,5 @@ export function QualityScoreChart() {
         </ChartContainer>
       </CardContent>
     </Card>
-  )
+  );
 }
