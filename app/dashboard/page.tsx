@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { PageHeader } from "@/components/layout/page-header";
@@ -271,10 +270,6 @@ export default function DashboardPage() {
     setSearchQuery(query);
   };
 
-  // Calcular informações de paginação
-  const totalPages = Math.max(1, Math.ceil(totalFiltered / PAGE_SIZE));
-  const startItem = totalFiltered === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
-  const endItem = Math.min(currentPage * PAGE_SIZE, totalFiltered);
 
   return (
     <AppLayout>
@@ -288,6 +283,7 @@ export default function DashboardPage() {
           kpis={kpis}
           activeFilter={activeFilter}
           onFilterChange={handleFilterChange}
+          isLoading={isInitialLoading}
         />
 
         <div className="w-full">
@@ -300,7 +296,7 @@ export default function DashboardPage() {
             onPageChange={setCurrentPage}
             totalFiltered={totalFiltered}
             pageSize={PAGE_SIZE}
-            isTableLoading={isTableLoading}
+            isTableLoading={isInitialLoading || isTableLoading}
             onResetFilters={() => setActiveFilter(null)}
           />
         </div>
@@ -309,54 +305,6 @@ export default function DashboardPage() {
           <SeverityChart chartData={chartData} />
         </div>
       </div>
-
-      {/* Overlay de carregamento */}
-      {isInitialLoading && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-          <div className="flex flex-col items-center gap-6 rounded-lg bg-white p-8 shadow-lg">
-            {/* Logo ARGOS */}
-            <div className="flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-white">
-                <Image
-                  src="/icon.svg"
-                  alt="ARGOS"
-                  width={24}
-                  height={24}
-                  className="h-6 w-6"
-                />
-              </div>
-              <span className="text-lg font-bold text-foreground">ARGOS</span>
-            </div>
-
-            {/* Spinner */}
-            <svg
-              className="h-6 w-6 animate-spin text-primary"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-              />
-            </svg>
-
-            {/* Message */}
-            <span className="text-sm text-muted-foreground">
-              Carregando dashboard...
-            </span>
-          </div>
-        </div>
-      )}
     </AppLayout>
   );
 }

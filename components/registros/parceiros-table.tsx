@@ -12,7 +12,6 @@ import {
   KeyRound,
   LogIn,
   Mail,
-  RefreshCw,
   ShieldCheck,
 } from "lucide-react";
 import {
@@ -81,24 +80,32 @@ interface ParceirosTableProps {
 const statusConfig = {
   pendente: {
     label: "Pendente",
+    filterLabel: "Pendentes",
     className:
       "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
     icon: Clock3,
   },
   ativo: {
     label: "Ativo",
+    filterLabel: "Ativos",
     className:
       "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
     icon: CheckCircle2,
   },
   bloqueado: {
     label: "Bloqueado",
+    filterLabel: "Bloqueados",
     className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
     icon: Ban,
   },
 } satisfies Record<
   ParceiroStatus,
-  { label: string; className: string; icon: typeof Clock3 }
+  {
+    label: string;
+    filterLabel: string;
+    className: string;
+    icon: typeof Clock3;
+  }
 >;
 
 function getInitials(nameOrEmail?: string) {
@@ -161,6 +168,124 @@ function normalizeTipoAcesso(
 
 function isEmailPasswordPending(parceiro: Parceiro) {
   return parceiro.tipoAcesso === "email_senha" && !parceiro.authUid;
+}
+
+function getStatusFilterLabel(status: StatusFilter) {
+  if (status === "todos") return "Todos";
+  return statusConfig[status].filterLabel;
+}
+
+function getAccessHint(parceiro: Parceiro) {
+  if (isEmailPasswordPending(parceiro)) {
+    return "Aguardando criação de senha";
+  }
+
+  if (parceiro.tipoAcesso === "sso_google") {
+    return "Acesso via Google";
+  }
+
+  if (parceiro.tipoAcesso === "email_senha") {
+    return "Acesso por e-mail e senha";
+  }
+
+  return "Tipo de acesso não identificado";
+}
+
+function getEmptyMessage(statusFilter: StatusFilter) {
+  switch (statusFilter) {
+    case "pendente":
+      return "Nenhum parceiro pendente de aprovação.";
+    case "ativo":
+      return "Nenhum parceiro ativo encontrado.";
+    case "bloqueado":
+      return "Nenhum parceiro bloqueado encontrado.";
+    default:
+      return "Nenhum parceiro encontrado.";
+  }
+}
+
+function SkeletonStyles() {
+  return (
+    <style>{`
+      @keyframes argos-skeleton-shimmer {
+        100% {
+          transform: translateX(100%);
+        }
+      }
+
+      .argos-skeleton {
+        position: relative;
+        overflow: hidden;
+        background: hsl(var(--muted));
+      }
+
+      .argos-skeleton::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        transform: translateX(-100%);
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.68),
+          transparent
+        );
+        animation: argos-skeleton-shimmer 1.35s ease-in-out infinite;
+      }
+
+      .dark .argos-skeleton::after {
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.08),
+          transparent
+        );
+      }
+    `}</style>
+  );
+}
+
+function SkeletonBlock({ className = "" }: { className?: string }) {
+  return <div className={`argos-skeleton rounded-md ${className}`} />;
+}
+
+function ParceirosTableSkeleton() {
+  return (
+    <>
+      {Array.from({ length: ITEMS_PER_PAGE }).map((_, index) => (
+        <TableRow key={index}>
+          <TableCell>
+            <div className="flex items-center gap-3">
+              <SkeletonBlock className="h-9 w-9 rounded-full" />
+              <div className="space-y-2">
+                <SkeletonBlock className="h-4 w-36" />
+                <SkeletonBlock className="h-3 w-48" />
+                <SkeletonBlock className="h-3 w-40" />
+              </div>
+            </div>
+          </TableCell>
+          <TableCell>
+            <SkeletonBlock className="h-6 w-28 rounded-full" />
+          </TableCell>
+          <TableCell>
+            <SkeletonBlock className="h-6 w-24 rounded-full" />
+          </TableCell>
+          <TableCell>
+            <SkeletonBlock className="h-4 w-28" />
+          </TableCell>
+          <TableCell>
+            <SkeletonBlock className="h-4 w-28" />
+          </TableCell>
+          <TableCell>
+            <div className="flex justify-end gap-2">
+              <SkeletonBlock className="h-9 w-28 rounded-md" />
+              <SkeletonBlock className="h-9 w-20 rounded-md" />
+            </div>
+          </TableCell>
+        </TableRow>
+      ))}
+    </>
+  );
 }
 
 export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
@@ -436,12 +561,25 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
 
   if (checkingAdmin) {
     return (
-      <Card className="border-0 shadow-sm">
-        <CardContent className="flex items-center gap-3 py-10 text-muted-foreground">
-          <RefreshCw className="h-4 w-4 animate-spin" />
-          Verificando permissão administrativa...
-        </CardContent>
-      </Card>
+      <>
+        <SkeletonStyles />
+        <Card className="border-0 shadow-sm">
+          <CardContent className="space-y-4 py-6">
+            <div className="flex items-center gap-3">
+              <SkeletonBlock className="h-10 w-10 rounded-full" />
+              <div className="space-y-2">
+                <SkeletonBlock className="h-4 w-52" />
+                <SkeletonBlock className="h-3 w-72" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <SkeletonBlock className="h-3 w-full" />
+              <SkeletonBlock className="h-3 w-10/12" />
+              <SkeletonBlock className="h-3 w-8/12" />
+            </div>
+          </CardContent>
+        </Card>
+      </>
     );
   }
 
@@ -496,6 +634,7 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
 
   return (
     <div className="space-y-4">
+      <SkeletonStyles />
       <Card className="border-0 shadow-sm">
         <CardContent className="flex flex-col gap-4 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
@@ -503,7 +642,10 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <p className="font-medium">Painel de acesso de parceiros</p>
+              <p className="font-medium">Acessos de parceiros</p>
+              <p className="text-sm text-muted-foreground">
+                Aprove, recuse ou bloqueie usuários parceiros.
+              </p>
             </div>
           </div>
 
@@ -516,11 +658,10 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
                 variant={statusFilter === status ? "default" : "outline"}
                 size="sm"
                 onClick={() => setStatusFilter(status)}
+                className="gap-2"
               >
-                {status === "todos" ? "Todos" : statusConfig[status].label}
-                <Badge variant="secondary" className="ml-2">
-                  {statusCounts[status]}
-                </Badge>
+                {getStatusFilterLabel(status)}
+                <Badge variant="secondary">{statusCounts[status]}</Badge>
               </Button>
             ))}
           </div>
@@ -544,8 +685,7 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
           <TableHeader>
             <TableRow className="bg-muted/50 hover:bg-muted/50">
               <TableHead className="font-semibold">Parceiro</TableHead>
-              <TableHead className="font-semibold">Tipo de acesso</TableHead>
-              <TableHead className="font-semibold">Provider</TableHead>
+              <TableHead className="font-semibold">Acesso</TableHead>
               <TableHead className="font-semibold">Status</TableHead>
               <TableHead className="font-semibold">Criado em</TableHead>
               <TableHead className="font-semibold">Último acesso</TableHead>
@@ -554,21 +694,14 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
           </TableHeader>
           <TableBody>
             {loadingParceiros ? (
-              <TableRow>
-                <TableCell
-                  colSpan={7}
-                  className="h-28 text-center text-muted-foreground"
-                >
-                  Carregando parceiros...
-                </TableCell>
-              </TableRow>
+              <ParceirosTableSkeleton />
             ) : paginatedParceiros.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={7}
+                  colSpan={6}
                   className="h-28 text-center text-muted-foreground"
                 >
-                  Nenhum parceiro encontrado.
+                  {getEmptyMessage(statusFilter)}
                 </TableCell>
               </TableRow>
             ) : (
@@ -608,9 +741,7 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
                             {parceiro.email || "Sem e-mail"}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {pendingEmailPassword
-                              ? "Documento temporário por e-mail"
-                              : `UID: ${parceiro.authUid || parceiro.uid || parceiro.id}`}
+                            {getAccessHint(parceiro)}
                           </p>
                         </div>
                       </div>
@@ -620,7 +751,7 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
                         {parceiro.tipoAcesso === "sso_google" ? (
                           <>
                             <KeyRound className="h-3 w-3" />
-                            SSO Google
+                            Google
                           </>
                         ) : (
                           <>
@@ -629,9 +760,6 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
                           </>
                         )}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {parceiro.provider || "—"}
                     </TableCell>
                     <TableCell>
                       <Badge
@@ -652,7 +780,52 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-2">
-                        {status !== "ativo" && (
+                        {status === "pendente" && (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() =>
+                                updatePartnerStatus(parceiro, "ativo")
+                              }
+                              disabled={updatingId === parceiro.id}
+                            >
+                              <CheckCircle2 className="mr-2 h-4 w-4" />
+                              {pendingEmailPassword
+                                ? "Aprovar e enviar acesso"
+                                : "Aprovar acesso"}
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                              onClick={() =>
+                                updatePartnerStatus(parceiro, "bloqueado")
+                              }
+                              disabled={updatingId === parceiro.id}
+                            >
+                              <Ban className="mr-2 h-4 w-4" />
+                              Recusar
+                            </Button>
+                          </>
+                        )}
+
+                        {status === "ativo" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                            onClick={() =>
+                              updatePartnerStatus(parceiro, "bloqueado")
+                            }
+                            disabled={updatingId === parceiro.id}
+                          >
+                            <Ban className="mr-2 h-4 w-4" />
+                            Bloquear acesso
+                          </Button>
+                        )}
+
+                        {status === "bloqueado" && (
                           <Button
                             size="sm"
                             onClick={() =>
@@ -661,37 +834,7 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
                             disabled={updatingId === parceiro.id}
                           >
                             <CheckCircle2 className="mr-2 h-4 w-4" />
-                            {pendingEmailPassword
-                              ? "Aprovar e enviar acesso"
-                              : "Aprovar"}
-                          </Button>
-                        )}
-
-                        {status !== "bloqueado" && (
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() =>
-                              updatePartnerStatus(parceiro, "bloqueado")
-                            }
-                            disabled={updatingId === parceiro.id}
-                          >
-                            <Ban className="mr-2 h-4 w-4" />
-                            Bloquear
-                          </Button>
-                        )}
-
-                        {status !== "pendente" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              updatePartnerStatus(parceiro, "pendente")
-                            }
-                            disabled={updatingId === parceiro.id}
-                          >
-                            <Clock3 className="mr-2 h-4 w-4" />
-                            Pendente
+                            Reativar acesso
                           </Button>
                         )}
                       </div>
@@ -704,58 +847,73 @@ export function ParceirosTable({ searchQuery }: ParceirosTableProps) {
         </Table>
 
         <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-muted-foreground">
-            Mostrando {filteredParceiros.length === 0 ? 0 : startIndex + 1} a{" "}
-            {Math.min(startIndex + ITEMS_PER_PAGE, filteredParceiros.length)} de{" "}
-            {filteredParceiros.length} parceiros
-          </p>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setCurrentPage(1)}
-              disabled={safeCurrentPage === 1}
-            >
-              <ChevronsLeft className="h-4 w-4" />
-              <span className="sr-only">Primeira página</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-              disabled={safeCurrentPage === 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              <span className="sr-only">Página anterior</span>
-            </Button>
-            <span className="px-3 text-sm text-muted-foreground">
-              Página {safeCurrentPage} de {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() =>
-                setCurrentPage((page) => Math.min(totalPages, page + 1))
-              }
-              disabled={safeCurrentPage === totalPages}
-            >
-              <ChevronRight className="h-4 w-4" />
-              <span className="sr-only">Próxima página</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setCurrentPage(totalPages)}
-              disabled={safeCurrentPage === totalPages}
-            >
-              <ChevronsRight className="h-4 w-4" />
-              <span className="sr-only">Última página</span>
-            </Button>
-          </div>
+          {loadingParceiros ? (
+            <>
+              <SkeletonBlock className="h-4 w-56" />
+              <div className="flex items-center gap-2">
+                <SkeletonBlock className="h-8 w-8 rounded-md" />
+                <SkeletonBlock className="h-8 w-8 rounded-md" />
+                <SkeletonBlock className="h-4 w-28" />
+                <SkeletonBlock className="h-8 w-8 rounded-md" />
+                <SkeletonBlock className="h-8 w-8 rounded-md" />
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Mostrando {filteredParceiros.length === 0 ? 0 : startIndex + 1} a{" "}
+                {Math.min(startIndex + ITEMS_PER_PAGE, filteredParceiros.length)} de{" "}
+                {filteredParceiros.length} parceiros
+              </p>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={safeCurrentPage === 1}
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                  <span className="sr-only">Primeira página</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  disabled={safeCurrentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  <span className="sr-only">Página anterior</span>
+                </Button>
+                <span className="px-3 text-sm text-muted-foreground">
+                  Página {safeCurrentPage} de {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() =>
+                    setCurrentPage((page) => Math.min(totalPages, page + 1))
+                  }
+                  disabled={safeCurrentPage === totalPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                  <span className="sr-only">Próxima página</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={safeCurrentPage === totalPages}
+                >
+                  <ChevronsRight className="h-4 w-4" />
+                  <span className="sr-only">Última página</span>
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </Card>
     </div>

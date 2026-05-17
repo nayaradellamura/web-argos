@@ -1,5 +1,5 @@
 "use client";
-
+import { Skeleton } from "@/components/ui/skeleton";
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -140,6 +140,7 @@ interface KpiCardsProps {
   kpis: DashboardKpis;
   activeFilter: DashboardFilter | null;
   onFilterChange: (filter: DashboardFilter) => void;
+  isLoading?: boolean;
 }
 
 // Resolve o valor numérico do KPI pela chave, sem criar objetos intermediários.
@@ -158,6 +159,7 @@ export function KpiCards({
   kpis,
   activeFilter,
   onFilterChange,
+  isLoading,
 }: KpiCardsProps) {
   const [mounted, setMounted] = useState(false);
 
@@ -170,6 +172,26 @@ export function KpiCards({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5" />
     );
   }
+
+  if (isLoading) {
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      {Array.from({ length: 5 }).map((_, index) => (
+        <Card key={index} className="py-4">
+          <CardContent className="flex items-start justify-between gap-3">
+            <div className="flex w-full flex-col gap-2">
+              <Skeleton className="h-3 w-28" />
+              <Skeleton className="h-7 w-14" />
+              <Skeleton className="h-3 w-36" />
+            </div>
+
+            <Skeleton className="h-10 w-10 rounded-lg" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">

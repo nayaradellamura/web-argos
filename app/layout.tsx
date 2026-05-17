@@ -12,15 +12,15 @@ export const metadata: Metadata = {
   description: "Sistema de gestao pericial de sinistros",
   generator: "v0.app",
   icons: {
-    icon: [
-      {
-        url: "/icon.svg",
-        type: "image/svg+xml",
-      },
-    ],
-    shortcut: "/icon.svg",
-    apple: "/apple-icon.png",
-  },
+  icon: [
+    {
+      url: "/argos_icon.png",
+      type: "image/png",
+    },
+  ],
+  shortcut: "/argos_icon.png",
+  apple: "/argos_icon.png",
+},
 };
 
 export default function RootLayout({

@@ -1,5 +1,6 @@
 "use client";
 
+
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -20,6 +21,7 @@ import {
   type DashboardClaim,
   type DashboardFilter,
 } from "@/components/dashboard/types";
+import { Skeleton } from "../ui/skeleton";
 
 interface RecentClaimsTableProps {
   claims: DashboardClaim[];
@@ -168,13 +170,55 @@ export function RecentClaimsTable({
       </CardHeader>
       <CardContent className="overflow-x-auto">
         {isTableLoading ? (
-          <div className="flex h-64 items-center justify-center">
-            <div className="flex flex-col items-center gap-2 text-muted-foreground">
-              <Spinner className="size-5" />
-              <span className="text-xs">Carregando...</span>
-            </div>
-          </div>
-        ) : (
+  <div className="space-y-3">
+    <Table className="min-w-[600px]">
+      <TableHeader>
+        <TableRow>
+          <TableHead>ID</TableHead>
+          <TableHead>Placa</TableHead>
+          <TableHead>Oficina Credenciada</TableHead>
+          <TableHead>Severidade</TableHead>
+          <TableHead>Status</TableHead>
+        </TableRow>
+      </TableHeader>
+
+      <TableBody>
+        {Array.from({ length: pageSize }).map((_, index) => (
+          <TableRow key={index}>
+            <TableCell>
+              <Skeleton className="h-4 w-16" />
+            </TableCell>
+            <TableCell>
+              <Skeleton className="h-4 w-20" />
+            </TableCell>
+            <TableCell>
+              <Skeleton className="h-4 w-40" />
+            </TableCell>
+            <TableCell>
+              <Skeleton className="h-6 w-24 rounded-full" />
+            </TableCell>
+            <TableCell>
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-2.5 w-2.5 rounded-full" />
+                <Skeleton className="h-6 w-28 rounded-full" />
+              </div>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+
+    <div className="mt-4 flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
+      <Skeleton className="h-4 w-48" />
+
+      <div className="flex items-center gap-2">
+        <Skeleton className="h-9 w-9 rounded-md" />
+        <Skeleton className="h-9 w-28 rounded-md" />
+        <Skeleton className="h-9 w-9 rounded-md" />
+      </div>
+    </div>
+  </div>
+) : (
           <>
             <Table className="min-w-[600px]">
               <TableHeader>

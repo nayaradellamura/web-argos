@@ -83,18 +83,23 @@ export default function LoginPage() {
       <div className="relative mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-6xl items-center justify-center">
         <section className="flex w-full justify-center">
           <Card className="w-full max-w-md rounded-3xl border-white/70 bg-white/88 shadow-[0_24px_70px_rgba(15,23,42,0.10)] backdrop-blur-xl">
-            <CardHeader className="space-y-6 p-8 pb-4">
-              <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/20">
-                  <Eye className="h-7 w-7 text-primary-foreground" />
-                </div>
-                <div>
-                  <CardTitle className="text-3xl tracking-tight text-slate-950">
-                    ARGOS
-                  </CardTitle>
-                </div>
+            <CardHeader className="px-8 pt-8 pb-6">
+          <div className="flex items-center justify-center gap-4">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/20">
+                <img
+                  src="/eye_argos.svg"
+                  alt="Logo ARGOS"
+                  className="h-12 w-12 object-contain"
+                />
               </div>
-            </CardHeader>
+
+              <img
+                src="/display_argos.svg"
+                alt="ARGOS"
+                className="h-auto w-40 object-contain sm:w-44"
+              />
+            </div>
+           </CardHeader>
             <CardContent className="p-8 pt-2">
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">

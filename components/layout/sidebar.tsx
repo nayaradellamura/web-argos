@@ -10,7 +10,6 @@ import {
   Building2,
   AlertTriangle,
   LogOut,
-  Eye,
   X,
   Stethoscope,
 } from "lucide-react";
@@ -106,16 +105,17 @@ export function Sidebar({
             )}
           >
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-              <Eye className="h-5 w-5 text-primary-foreground" />
+              <img
+                      src="/eye_argos.svg"
+                      alt="Logo ARGOS"
+                      className="h-7 w-7 object-contain"
+                    />
             </div>
-            <span
-              className={cn(
-                "text-lg font-semibold tracking-tight text-sidebar-foreground",
-                isCollapsed && "lg:hidden",
-              )}
-            >
-              ARGOS
-            </span>
+            <img
+                src="/display_argos.svg"
+                alt="ARGOS"
+                className="h-auto w-36 object-contain"
+              />
           </Link>
 
           <Button
