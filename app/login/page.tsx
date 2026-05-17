@@ -76,30 +76,30 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(30,99,236,0.18),transparent_28%),radial-gradient(circle_at_80%_20%,rgba(0,196,140,0.14),transparent_22%),linear-gradient(180deg,#f7f9fc_0%,#eef3f9_100%)] px-4 py-10 sm:px-6 lg:px-10">
+    <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(30,99,236,0.18),transparent_28%),radial-gradient(circle_at_80%_20%,rgba(0,196,140,0.14),transparent_22%),linear-gradient(180deg,#f7f9fc_0%,#eef3f9_100%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(30,99,236,0.08),transparent_28%),radial-gradient(circle_at_80%_20%,rgba(0,196,140,0.08),transparent_22%),linear-gradient(180deg,#1a1f2e_0%,#141820_100%)] px-4 py-10 sm:px-6 lg:px-10">
       <div className="absolute -left-32 top-16 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
       <div className="absolute bottom-0 -right-24 h-72 w-72 rounded-full bg-emerald-400/10 blur-3xl" />
 
       <div className="relative mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-6xl items-center justify-center">
         <section className="flex w-full justify-center">
-          <Card className="w-full max-w-md rounded-3xl border-white/70 bg-white/88 shadow-[0_24px_70px_rgba(15,23,42,0.10)] backdrop-blur-xl">
+          <Card className="w-full max-w-md rounded-3xl border-white/70 bg-white/88 dark:border-white/10 dark:bg-slate-900/60 shadow-[0_24px_70px_rgba(15,23,42,0.10)] backdrop-blur-xl">
             <CardHeader className="px-8 pt-8 pb-6">
-          <div className="flex items-center justify-center gap-4">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/20">
+              <div className="flex items-center justify-center gap-4">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/20">
+                  <img
+                    src="/eye_argos.svg"
+                    alt="Logo ARGOS"
+                    className="h-12 w-12 object-contain"
+                  />
+                </div>
+
                 <img
-                  src="/eye_argos.svg"
-                  alt="Logo ARGOS"
-                  className="h-12 w-12 object-contain"
+                  src="/display_argos.svg"
+                  alt="ARGOS"
+                  className="h-auto w-40 object-contain sm:w-44 dark:invert"
                 />
               </div>
-
-              <img
-                src="/display_argos.svg"
-                alt="ARGOS"
-                className="h-auto w-40 object-contain sm:w-44"
-              />
-            </div>
-           </CardHeader>
+            </CardHeader>
             <CardContent className="p-8 pt-2">
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">
@@ -110,7 +110,7 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="seu.email@empresa.com"
-                    className="h-11 rounded-xl bg-white"
+                    className="h-11 rounded-xl bg-white dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                     required
                   />
                 </div>
@@ -123,7 +123,7 @@ export default function LoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Digite sua senha"
-                      className="h-11 rounded-xl bg-white pr-11"
+                      className="h-11 rounded-xl bg-white dark:bg-slate-800 dark:border-slate-700 dark:text-white pr-11"
                       required
                     />
                     <button

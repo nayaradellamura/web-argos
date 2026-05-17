@@ -8,7 +8,7 @@ export default function OrquestracaoPage() {
       <div className="space-y-6">
         <PageHeader
           title="Fluxo de Regulação"
-          description="Gerencie todos os sinistros atraves do pipeline de regulacao"
+          description="Gerencie todos os sinistros através do pipeline de regulação"
         />
 
         <div className="flex-1">

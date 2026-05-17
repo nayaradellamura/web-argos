@@ -1,10 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import { Search, Plus, MapPin, Wrench } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Check,
+  ChevronsUpDown,
+  Search,
+  Plus,
+  MapPin,
+  Wrench,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +22,19 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import {
   Select,
   SelectContent,
@@ -29,25 +50,10 @@ interface CredenciadosHeaderProps {
   onCityFilterChange: (value: string) => void;
   specialtyFilter: string;
   onSpecialtyFilterChange: (value: string) => void;
+  cityOptions: string[];
+  specialtyOptions: string[];
+  onCreated?: () => void;
 }
-
-const cities = [
-  "Todas",
-  "Araras-SP",
-  "Limeira-SP",
-  "Piracicaba-SP",
-  "Campinas-SP",
-  "Rio Claro-SP",
-];
-
-const specialties = [
-  "Todas",
-  "Chapeacao Avancada",
-  "Mecanica Geral",
-  "Funilaria e Pintura",
-  "Eletrica Automotiva",
-  "Vidracaria",
-];
 
 export function CredenciadosHeader({
   searchQuery,
@@ -56,12 +62,19 @@ export function CredenciadosHeader({
   onCityFilterChange,
   specialtyFilter,
   onSpecialtyFilterChange,
+  cityOptions,
+  specialtyOptions,
+  onCreated,
 }: CredenciadosHeaderProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [cityFilterOpen, setCityFilterOpen] = useState(false);
+  const [specialtyFilterOpen, setSpecialtyFilterOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [novoCredenciado, setNovoCredenciado] = useState({
-    nome: "",
-    cidade: "Araras-SP",
-    especialidade: "Chapeacao Avancada",
+    name: "",
+    city: cityOptions[0] ?? "",
+    specialty: specialtyOptions[0] ?? "",
+    cnpj: "",
     telefone: "",
     email: "",
     scoreInicial: "4.0",
@@ -69,9 +82,98 @@ export function CredenciadosHeader({
     status: "ativo",
   });
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const cityItems = useMemo(() => ["Todas", ...cityOptions], [cityOptions]);
+  const specialtyItems = useMemo(
+    () => ["Todas", ...specialtyOptions],
+    [specialtyOptions],
+  );
+
+  useEffect(() => {
+    setNovoCredenciado((prev) => ({
+      ...prev,
+      city: prev.city || cityOptions[0] || "",
+    }));
+  }, [cityOptions]);
+
+  useEffect(() => {
+    setNovoCredenciado((prev) => ({
+      ...prev,
+      specialty: prev.specialty || specialtyOptions[0] || "",
+    }));
+  }, [specialtyOptions]);
+
+  const formatCnpj = (value: string) => {
+    const digits = value.replace(/\D/g, "").slice(0, 14);
+
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 5) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
+    if (digits.length <= 8) {
+      return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5)}`;
+    }
+    if (digits.length <= 12) {
+      return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8)}`;
+    }
+
+    return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
+  };
+
+  const formatPhone = (value: string) => {
+    const digits = value.replace(/\D/g, "").slice(0, 11);
+
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setIsDialogOpen(false);
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/oficinas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: novoCredenciado.name,
+          nome: novoCredenciado.name,
+          cnpj: novoCredenciado.cnpj,
+          city: novoCredenciado.city,
+          cidade: novoCredenciado.city,
+          specialty: novoCredenciado.specialty,
+          especialidade: novoCredenciado.specialty,
+          phone: novoCredenciado.telefone,
+          telefone: novoCredenciado.telefone,
+          email: novoCredenciado.email,
+          status: "Ativo",
+          score: 5,
+          slaAvg: Number.parseFloat(novoCredenciado.slaMedio) || 3,
+          slaMedia: Number.parseFloat(novoCredenciado.slaMedio) || 3,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Falha ao criar oficina");
+      }
+
+      setIsDialogOpen(false);
+      setNovoCredenciado({
+        name: "",
+        city: cityOptions[0] ?? "",
+        specialty: specialtyOptions[0] ?? "",
+        cnpj: "",
+        telefone: "",
+        email: "",
+        scoreInicial: "4.0",
+        slaMedio: "3.0 dias",
+        status: "ativo",
+      });
+      onCreated?.();
+    } catch (error) {
+      console.error("Erro ao criar credenciado:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -87,33 +189,100 @@ export function CredenciadosHeader({
           />
         </div>
 
-        <Select value={cityFilter} onValueChange={onCityFilterChange}>
-          <SelectTrigger className="w-40">
-            <MapPin className="mr-2 h-4 w-4 text-muted-foreground" />
-            <SelectValue placeholder="Cidade" />
-          </SelectTrigger>
-          <SelectContent>
-            {cities.map((city) => (
-              <SelectItem key={city} value={city}>
-                {city}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Popover open={cityFilterOpen} onOpenChange={setCityFilterOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={cityFilterOpen}
+              className="w-52 justify-between"
+            >
+              <span className="flex items-center gap-2 truncate">
+                <MapPin className="h-4 w-4 text-muted-foreground" />
+                <span className="truncate">{cityFilter}</span>
+              </span>
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-52 p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Buscar cidade..." />
+              <CommandList>
+                <CommandEmpty>Nenhuma cidade encontrada.</CommandEmpty>
+                <CommandGroup>
+                  {cityItems.map((city) => (
+                    <CommandItem
+                      key={city}
+                      value={city}
+                      onSelect={() => {
+                        onCityFilterChange(city);
+                        setCityFilterOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          cityFilter === city ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                      {city}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
 
-        <Select value={specialtyFilter} onValueChange={onSpecialtyFilterChange}>
-          <SelectTrigger className="w-50">
-            <Wrench className="mr-2 h-4 w-4 text-muted-foreground" />
-            <SelectValue placeholder="Especialidade" />
-          </SelectTrigger>
-          <SelectContent>
-            {specialties.map((specialty) => (
-              <SelectItem key={specialty} value={specialty}>
-                {specialty}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Popover
+          open={specialtyFilterOpen}
+          onOpenChange={setSpecialtyFilterOpen}
+        >
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={specialtyFilterOpen}
+              className="w-56 justify-between"
+            >
+              <span className="flex items-center gap-2 truncate">
+                <Wrench className="h-4 w-4 text-muted-foreground" />
+                <span className="truncate">{specialtyFilter}</span>
+              </span>
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Buscar especialidade..." />
+              <CommandList>
+                <CommandEmpty>Nenhuma especialidade encontrada.</CommandEmpty>
+                <CommandGroup>
+                  {specialtyItems.map((specialty) => (
+                    <CommandItem
+                      key={specialty}
+                      value={specialty}
+                      onSelect={() => {
+                        onSpecialtyFilterChange(specialty);
+                        setSpecialtyFilterOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          specialtyFilter === specialty
+                            ? "opacity-100"
+                            : "opacity-0",
+                        )}
+                      />
+                      {specialty}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -136,14 +305,30 @@ export function CredenciadosHeader({
               <Label htmlFor="credenciado-nome">Nome da oficina</Label>
               <Input
                 id="credenciado-nome"
-                value={novoCredenciado.nome}
+                value={novoCredenciado.name}
                 onChange={(event) =>
                   setNovoCredenciado((prev) => ({
                     ...prev,
-                    nome: event.target.value,
+                    name: event.target.value,
                   }))
                 }
                 placeholder="Ex.: Elite Motors"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="credenciado-cnpj">CNPJ</Label>
+              <Input
+                id="credenciado-cnpj"
+                value={novoCredenciado.cnpj}
+                onChange={(event) =>
+                  setNovoCredenciado((prev) => ({
+                    ...prev,
+                    cnpj: formatCnpj(event.target.value),
+                  }))
+                }
+                placeholder="00.000.000/0000-00"
                 required
               />
             </div>
@@ -152,22 +337,20 @@ export function CredenciadosHeader({
               <div className="space-y-2">
                 <Label>Cidade</Label>
                 <Select
-                  value={novoCredenciado.cidade}
+                  value={novoCredenciado.city}
                   onValueChange={(value) =>
-                    setNovoCredenciado((prev) => ({ ...prev, cidade: value }))
+                    setNovoCredenciado((prev) => ({ ...prev, city: value }))
                   }
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
-                    {cities
-                      .filter((city) => city !== "Todas")
-                      .map((city) => (
-                        <SelectItem key={city} value={city}>
-                          {city}
-                        </SelectItem>
-                      ))}
+                    {cityOptions.map((city) => (
+                      <SelectItem key={city} value={city}>
+                        {city}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -175,11 +358,11 @@ export function CredenciadosHeader({
               <div className="space-y-2">
                 <Label>Especialidade</Label>
                 <Select
-                  value={novoCredenciado.especialidade}
+                  value={novoCredenciado.specialty}
                   onValueChange={(value) =>
                     setNovoCredenciado((prev) => ({
                       ...prev,
-                      especialidade: value,
+                      specialty: value,
                     }))
                   }
                 >
@@ -187,13 +370,11 @@ export function CredenciadosHeader({
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
-                    {specialties
-                      .filter((specialty) => specialty !== "Todas")
-                      .map((specialty) => (
-                        <SelectItem key={specialty} value={specialty}>
-                          {specialty}
-                        </SelectItem>
-                      ))}
+                    {specialtyOptions.map((specialty) => (
+                      <SelectItem key={specialty} value={specialty}>
+                        {specialty}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -208,7 +389,7 @@ export function CredenciadosHeader({
                   onChange={(event) =>
                     setNovoCredenciado((prev) => ({
                       ...prev,
-                      telefone: event.target.value,
+                      telefone: formatPhone(event.target.value),
                     }))
                   }
                   placeholder="(19) 99999-9999"
@@ -292,10 +473,13 @@ export function CredenciadosHeader({
                 type="button"
                 variant="outline"
                 onClick={() => setIsDialogOpen(false)}
+                disabled={isSubmitting}
               >
                 Cancelar
               </Button>
-              <Button type="submit">Salvar Credenciado</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Salvando..." : "Salvar Credenciado"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

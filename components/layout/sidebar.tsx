@@ -11,7 +11,7 @@ import {
   AlertTriangle,
   LogOut,
   X,
-  Stethoscope,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,7 @@ const navigationItems = [
   {
     name: "Vistorias",
     href: "/vistoria",
-    icon: Stethoscope,
+    icon: ClipboardList,
   },
   {
     name: "Cadastros",
@@ -106,16 +106,16 @@ export function Sidebar({
           >
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
               <img
-                      src="/eye_argos.svg"
-                      alt="Logo ARGOS"
-                      className="h-7 w-7 object-contain"
-                    />
+                src="/eye_argos.svg"
+                alt="Logo ARGOS"
+                className="h-7 w-7 object-contain"
+              />
             </div>
             <img
-                src="/display_argos.svg"
-                alt="ARGOS"
-                className="h-auto w-36 object-contain"
-              />
+              src="/display_argos.svg"
+              alt="ARGOS"
+              className="h-auto w-36 object-contain dark:invert"
+            />
           </Link>
 
           <Button

@@ -23,13 +23,16 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 
-const data = [
-  { name: "Elite Motors", score: 4.9 },
-  { name: "AutoPrime", score: 4.7 },
-  { name: "CarTech", score: 4.5 },
-  { name: "MasterFix", score: 4.3 },
-  { name: "ProRepair", score: 4.1 },
-];
+interface QualityScoreItem {
+  name: string;
+  score: number;
+}
+
+interface QualityScoreChartProps {
+  data: QualityScoreItem[];
+  className?: string;
+  chartClassName?: string;
+}
 
 const chartConfig = {
   score: {
@@ -46,9 +49,13 @@ const barPalette = [
   "var(--chart-5)",
 ];
 
-export function QualityScoreChart() {
+export function QualityScoreChart({
+  data,
+  className,
+  chartClassName,
+}: QualityScoreChartProps) {
   return (
-    <Card>
+    <Card className={className}>
       <CardHeader>
         <CardTitle className="text-base font-semibold">
           Score de Qualidade Medio
@@ -56,12 +63,15 @@ export function QualityScoreChart() {
         <CardDescription>Top 5 oficinas com melhor avaliacao</CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig} className="h-55 w-full">
+        <ChartContainer
+          config={chartConfig}
+          className={chartClassName ?? "h-96 w-full"}
+        >
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={data}
               layout="vertical"
-              margin={{ top: 5, right: 40, left: 0, bottom: 5 }}
+              margin={{ top: 8, right: 28, left: 24, bottom: 8 }}
             >
               <CartesianGrid
                 stroke="var(--border)"
@@ -82,7 +92,7 @@ export function QualityScoreChart() {
                 type="category"
                 axisLine={false}
                 tickLine={false}
-                width={90}
+                width={220}
                 tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
               />
               <ChartTooltip

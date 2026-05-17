@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,9 @@ import {
   Mail,
   MoreHorizontal,
   Building2,
+  ChevronLeft,
+  ChevronRight,
+  Trash2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -33,136 +37,193 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  CredenciadoStatus,
-  getCredenciadosStore,
-  setCredenciadosStore,
-} from "@/lib/business-rules-store";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface Oficina {
   id: string;
   name: string;
+  cnpj: string;
   city: string;
   specialty: string;
   score: number;
-  slaAvg: string;
+  slaAvg: number;
   activeClaims: number;
+  totalSinistros: number;
   phone: string;
+  telefone?: string;
   email: string;
-  status: "ativo" | "pendente" | "suspenso";
+  status: "Ativo" | "Pendente" | "Suspenso" | "Inativo";
+}
+
+interface Sinistro {
+  id: string;
+  protocol: string;
+  placa: string;
+  vehicle: string;
+  entryDate: string;
+  statusVistoria: string;
 }
 
 interface EditFormState {
   name: string;
+  cnpj: string;
   city: string;
   specialty: string;
+  score: string;
+  slaAvg: string;
+  status: Oficina["status"];
   phone: string;
   email: string;
-  status: Oficina["status"];
 }
-
-const oficinasData: Oficina[] = [
-  {
-    id: "OFC-001",
-    name: "Elite Motors",
-    city: "Araras-SP",
-    specialty: "Chapeacao Avancada",
-    score: 4.9,
-    slaAvg: "2.8 dias",
-    activeClaims: 12,
-    phone: "(19) 3541-2200",
-    email: "contato@elitemotors.com.br",
-    status: "ativo",
-  },
-  {
-    id: "OFC-002",
-    name: "AutoPrime Reparos",
-    city: "Limeira-SP",
-    specialty: "Mecanica Geral",
-    score: 4.7,
-    slaAvg: "3.1 dias",
-    activeClaims: 8,
-    phone: "(19) 3404-5500",
-    email: "atendimento@autoprime.com.br",
-    status: "ativo",
-  },
-  {
-    id: "OFC-003",
-    name: "CarTech Solutions",
-    city: "Piracicaba-SP",
-    specialty: "Eletrica Automotiva",
-    score: 4.5,
-    slaAvg: "3.5 dias",
-    activeClaims: 6,
-    phone: "(19) 3422-8800",
-    email: "suporte@cartech.com.br",
-    status: "ativo",
-  },
-  {
-    id: "OFC-004",
-    name: "MasterFix Auto",
-    city: "Campinas-SP",
-    specialty: "Funilaria e Pintura",
-    score: 4.3,
-    slaAvg: "4.2 dias",
-    activeClaims: 15,
-    phone: "(19) 3289-4400",
-    email: "oficina@masterfix.com.br",
-    status: "ativo",
-  },
-  {
-    id: "OFC-005",
-    name: "ProRepair Center",
-    city: "Rio Claro-SP",
-    specialty: "Chapeacao Avancada",
-    score: 4.1,
-    slaAvg: "3.8 dias",
-    activeClaims: 9,
-    phone: "(19) 3524-7700",
-    email: "contato@prorepair.com.br",
-    status: "pendente",
-  },
-  {
-    id: "OFC-006",
-    name: "VidroMax Automotivo",
-    city: "Araras-SP",
-    specialty: "Vidracaria",
-    score: 4.6,
-    slaAvg: "1.5 dias",
-    activeClaims: 4,
-    phone: "(19) 3541-9900",
-    email: "vidromax@email.com.br",
-    status: "ativo",
-  },
-  {
-    id: "OFC-007",
-    name: "SpeedFix Mecanica",
-    city: "Limeira-SP",
-    specialty: "Mecanica Geral",
-    score: 3.9,
-    slaAvg: "4.8 dias",
-    activeClaims: 7,
-    phone: "(19) 3441-3300",
-    email: "speedfix@email.com.br",
-    status: "suspenso",
-  },
-  {
-    id: "OFC-008",
-    name: "TopCar Funilaria",
-    city: "Campinas-SP",
-    specialty: "Funilaria e Pintura",
-    score: 4.4,
-    slaAvg: "3.3 dias",
-    activeClaims: 11,
-    phone: "(19) 3255-6600",
-    email: "topcar@topcar.com.br",
-    status: "ativo",
-  },
-];
 
 interface OficinasListProps {
   searchQuery: string;
   cityFilter: string;
   specialtyFilter: string;
+}
+
+interface ApiResponse {
+  oficinas?: Record<string, unknown>[];
+  totalCount?: number;
+  data?: Oficina[];
+  total?: number;
+  page?: number;
+  limit?: number;
+  historico?: Record<string, unknown>[];
+  sinistros?: Sinistro[];
+}
+
+function firstNonEmptyString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  return "";
+}
+
+function normalizeStatus(status: unknown): Oficina["status"] {
+  const value = String(status ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (value === "pendente") return "Pendente";
+  if (value === "suspenso") return "Suspenso";
+  if (value === "inativo") return "Inativo";
+
+  return "Ativo";
+}
+
+function mapApiOficina(raw: Record<string, unknown>): Oficina {
+  const city = firstNonEmptyString(raw.city, raw.cidade);
+  const uf = firstNonEmptyString(raw.uf);
+  const cityWithUf = city && uf && !city.includes("-") ? `${city}-${uf}` : city;
+
+  const scoreValue = Number(raw.score);
+  const score = Number.isFinite(scoreValue) ? scoreValue : 0;
+
+  const slaNumber = Number(raw.slaAvg ?? raw.slaMedia);
+  const slaAvg = Number.isFinite(slaNumber) ? slaNumber : 0;
+
+  const activeClaimsValue = Number(raw.activeClaims);
+  const sinistrosArray = Array.isArray(raw.sinistros)
+    ? raw.sinistros
+    : Array.isArray(raw.historico)
+      ? raw.historico
+      : [];
+
+  const totalSinistrosValue = Number(raw.totalSinistros);
+  const totalSinistros = Number.isFinite(totalSinistrosValue)
+    ? totalSinistrosValue
+    : sinistrosArray.length;
+
+  return {
+    id: String(raw.id ?? "-"),
+    name: firstNonEmptyString(raw.name, raw.nome) || "Oficina sem nome",
+    cnpj: firstNonEmptyString(raw.cnpj) || "",
+    city: cityWithUf || "-",
+    specialty:
+      firstNonEmptyString(raw.specialty, raw.especialidade) || "Não informado",
+    score,
+    slaAvg,
+    activeClaims: Number.isFinite(activeClaimsValue)
+      ? activeClaimsValue
+      : sinistrosArray.length,
+    totalSinistros,
+    phone: firstNonEmptyString(raw.phone, raw.telefone) || "-",
+    telefone: firstNonEmptyString(raw.telefone),
+    email: firstNonEmptyString(raw.email) || "-",
+    status: normalizeStatus(raw.status),
+  };
+}
+
+function formatSlaDays(value: number) {
+  return `${value.toFixed(1)} dias`;
+}
+
+function formatCnpj(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 14);
+
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 5) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
+  if (digits.length <= 8) {
+    return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5)}`;
+  }
+  if (digits.length <= 12) {
+    return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8)}`;
+  }
+
+  return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
+}
+
+function formatPhone(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
+function formatSinistros(count: number): string {
+  if (count === 1) return "1 sinistro";
+  return `${count} sinistros`;
+}
+
+function getVistoriaStatusBadgeClass(status: string) {
+  const normalized = status.toLowerCase();
+
+  if (normalized.includes("agend")) {
+    return "bg-amber-500/10 text-amber-700 border-amber-500/40";
+  }
+
+  if (normalized.includes("check") || normalized.includes("realizado")) {
+    return "bg-sky-500/10 text-sky-700 border-sky-500/40";
+  }
+
+  if (normalized.includes("conclu") || normalized.includes("finaliz")) {
+    return "bg-emerald-500/10 text-emerald-700 border-emerald-500/40";
+  }
+
+  if (normalized.includes("pend")) {
+    return "bg-orange-500/10 text-orange-700 border-orange-500/40";
+  }
+
+  return "bg-muted text-muted-foreground border-border";
 }
 
 function renderStars(score: number) {
@@ -191,22 +252,28 @@ function renderStars(score: number) {
 
 function getStatusBadge(status: Oficina["status"]) {
   switch (status) {
-    case "ativo":
+    case "Ativo":
       return (
         <Badge className="bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20">
           Ativo
         </Badge>
       );
-    case "pendente":
+    case "Pendente":
       return (
         <Badge className="bg-amber-500/10 text-amber-600 hover:bg-amber-500/20">
           Pendente
         </Badge>
       );
-    case "suspenso":
+    case "Suspenso":
       return (
         <Badge className="bg-red-500/10 text-red-600 hover:bg-red-500/20">
           Suspenso
+        </Badge>
+      );
+    case "Inativo":
+      return (
+        <Badge className="bg-gray-500/10 text-gray-600 hover:bg-gray-500/20">
+          Inativo
         </Badge>
       );
   }
@@ -217,95 +284,211 @@ export function OficinasList({
   cityFilter,
   specialtyFilter,
 }: OficinasListProps) {
-  const [oficinas, setOficinas] = useState(oficinasData);
+  const { toast } = useToast();
+  const [oficinas, setOficinas] = useState<Oficina[]>([]);
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
   const [isSuspendDialogOpen, setIsSuspendDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedOficina, setSelectedOficina] = useState<Oficina | null>(null);
+  const [sinistros, setSinistros] = useState<Sinistro[]>([]);
+  const [isLoadingSinistros, setIsLoadingSinistros] = useState(false);
   const [editForm, setEditForm] = useState<EditFormState>({
     name: "",
+    cnpj: "",
     city: "",
     specialty: "",
+    score: "5.0",
+    slaAvg: "3.0",
+    status: "Ativo",
     phone: "",
     email: "",
-    status: "ativo",
   });
 
+  const LIMIT = 8;
+
+  const handleCopyPhone = async (phone?: string) => {
+    const value = (phone ?? "").trim();
+
+    if (!value || value === "-") {
+      toast({
+        title: "Erro",
+        description: "Número de telefone não disponível",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(value);
+      toast({
+        description: "Telefone copiado para a área de transferência!",
+      });
+    } catch (error) {
+      console.error("Erro ao copiar telefone:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível copiar o telefone",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCopyEmail = async (email: string) => {
+    const value = email.trim();
+
+    if (!value || value === "-") {
+      toast({
+        title: "Erro",
+        description: "E-mail não disponível",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(value);
+      toast({
+        description: "E-mail copiado para a área de transferência!",
+      });
+    } catch (error) {
+      console.error("Erro ao copiar e-mail:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível copiar o e-mail",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Fetch oficinas
   useEffect(() => {
-    const credenciados = getCredenciadosStore();
-    const credenciadoMap = new Map(
-      credenciados.map((credenciado) => [credenciado.id, credenciado]),
-    );
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 350);
 
-    setOficinas((current) =>
-      current.map((oficina) => {
-        const credenciado = credenciadoMap.get(oficina.id);
+    return () => window.clearTimeout(timeoutId);
+  }, [searchQuery]);
 
-        if (!credenciado) {
-          return oficina;
-        }
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchQuery, cityFilter, specialtyFilter]);
 
-        return {
-          ...oficina,
-          name: credenciado.name,
-          status: credenciado.status,
-        };
-      }),
-    );
-  }, []);
+  useEffect(() => {
+    fetchOficinas();
+  }, [debouncedSearchQuery]);
+
+  const fetchOficinas = async () => {
+    setIsLoading(true);
+    try {
+      const apiLimit = 50;
+      const firstParams = new URLSearchParams({
+        page: "1",
+        limit: String(apiLimit),
+        search: debouncedSearchQuery,
+      });
+
+      const firstResponse = await fetch(
+        `/api/oficinas?${firstParams.toString()}`,
+      );
+      if (!firstResponse.ok) throw new Error("Falha ao carregar oficinas");
+
+      const firstPageRes: ApiResponse = await firstResponse.json();
+      const totalCount = firstPageRes.totalCount ?? 0;
+      const totalApiPages = Math.max(1, Math.ceil(totalCount / apiLimit));
+
+      const additionalPages =
+        totalApiPages > 1
+          ? await Promise.all(
+              Array.from({ length: totalApiPages - 1 }, (_, index) => {
+                const page = index + 2;
+                const params = new URLSearchParams({
+                  page: String(page),
+                  limit: String(apiLimit),
+                  search: debouncedSearchQuery,
+                });
+                return fetch(`/api/oficinas?${params.toString()}`).then(
+                  (res) => {
+                    if (!res.ok) {
+                      throw new Error("Falha ao carregar oficinas");
+                    }
+                    return res.json() as Promise<ApiResponse>;
+                  },
+                );
+              }),
+            )
+          : [];
+
+      const allRawOficinas = [
+        ...(firstPageRes.oficinas ?? []),
+        ...additionalPages.flatMap((pageRes) => pageRes.oficinas ?? []),
+      ];
+
+      const mappedOficinas = allRawOficinas.map((oficina) =>
+        mapApiOficina(oficina),
+      );
+
+      setOficinas(mappedOficinas);
+    } catch (error) {
+      console.error("Erro ao buscar oficinas:", error);
+      setOficinas([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchSinistros = async (oficinaId: string) => {
+    setIsLoadingSinistros(true);
+    try {
+      const response = await fetch(
+        `/api/oficinas/${oficinaId}/sinistros?limit=10`,
+      );
+      if (!response.ok) throw new Error("Falha ao carregar sinistros");
+
+      const data: ApiResponse = await response.json();
+      const historico = data.historico ?? [];
+
+      setSinistros(
+        historico.map((item) => ({
+          id: String(item.id ?? "-"),
+          protocol: String(item.id ?? item.protocol ?? "-"),
+          placa: String(item.placa ?? "-"),
+          vehicle: String(item.veiculo ?? item.vehicle ?? "-"),
+          entryDate: String(item.entryDate ?? ""),
+          statusVistoria: String(item.statusVistoria ?? item.status ?? "-"),
+        })),
+      );
+    } catch (error) {
+      console.error("Erro ao buscar sinistros:", error);
+      setSinistros([]);
+    } finally {
+      setIsLoadingSinistros(false);
+    }
+  };
 
   const handleOpenEdit = (oficina: Oficina) => {
     setSelectedOficina(oficina);
     setEditForm({
       name: oficina.name,
+      cnpj: oficina.cnpj,
       city: oficina.city,
       specialty: oficina.specialty,
+      score: oficina.score.toFixed(1),
+      slaAvg: oficina.slaAvg.toFixed(1),
+      status: oficina.status,
       phone: oficina.phone,
       email: oficina.email,
-      status: oficina.status,
     });
     setIsEditDialogOpen(true);
   };
 
-  const handleOpenHistory = (oficina: Oficina) => {
+  const handleOpenHistory = async (oficina: Oficina) => {
     setSelectedOficina(oficina);
     setIsHistoryDialogOpen(true);
-  };
-
-  const handleSaveEdit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (!selectedOficina) {
-      return;
-    }
-
-    setOficinas((currentOficinas) => {
-      const updatedOficinas = currentOficinas.map((oficina) =>
-        oficina.id === selectedOficina.id
-          ? {
-              ...oficina,
-              name: editForm.name,
-              city: editForm.city,
-              specialty: editForm.specialty,
-              phone: editForm.phone,
-              email: editForm.email,
-              status: editForm.status as Oficina["status"],
-            }
-          : oficina,
-      );
-
-      setCredenciadosStore(
-        updatedOficinas.map((oficina) => ({
-          id: oficina.id,
-          name: oficina.name,
-          status: oficina.status as CredenciadoStatus,
-        })),
-      );
-
-      return updatedOficinas;
-    });
-
-    setIsEditDialogOpen(false);
+    await fetchSinistros(oficina.id);
   };
 
   const handleOpenSuspend = (oficina: Oficina) => {
@@ -313,156 +496,322 @@ export function OficinasList({
     setIsSuspendDialogOpen(true);
   };
 
-  const handleConfirmSuspend = () => {
-    if (!selectedOficina) {
-      return;
-    }
-
-    setOficinas((currentOficinas) => {
-      const updatedOficinas = currentOficinas.map((oficina) =>
-        oficina.id === selectedOficina.id
-          ? { ...oficina, status: "suspenso" as Oficina["status"] }
-          : oficina,
-      );
-
-      setCredenciadosStore(
-        updatedOficinas.map((oficina) => ({
-          id: oficina.id,
-          name: oficina.name,
-          status: oficina.status as CredenciadoStatus,
-        })),
-      );
-
-      return updatedOficinas;
-    });
-
-    setIsSuspendDialogOpen(false);
+  const handleOpenDelete = (oficina: Oficina) => {
+    setSelectedOficina(oficina);
+    setIsDeleteDialogOpen(true);
   };
 
-  const filteredOficinas = oficinas.filter((oficina) => {
-    const matchesSearch =
-      oficina.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      oficina.id.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCity = cityFilter === "Todas" || oficina.city === cityFilter;
-    const matchesSpecialty =
-      specialtyFilter === "Todas" || oficina.specialty === specialtyFilter;
+  const handleSaveEdit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedOficina) return;
 
-    return matchesSearch && matchesCity && matchesSpecialty;
-  });
+    try {
+      const response = await fetch(`/api/oficinas/${selectedOficina.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editForm.name,
+          nome: editForm.name,
+          cnpj: editForm.cnpj,
+          city: editForm.city,
+          cidade: editForm.city,
+          specialty: editForm.specialty,
+          especialidade: editForm.specialty,
+          score: Number.parseFloat(editForm.score) || 0,
+          slaAvg: Number.parseFloat(editForm.slaAvg) || 0,
+          slaMedia: Number.parseFloat(editForm.slaAvg) || 0,
+          status: editForm.status,
+          phone: editForm.phone,
+          telefone: editForm.phone,
+          email: editForm.email,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Falha ao atualizar oficina");
+
+      setOficinas((prev) =>
+        prev.map((o) =>
+          o.id === selectedOficina.id
+            ? {
+                ...o,
+                name: editForm.name,
+                cnpj: editForm.cnpj,
+                city: editForm.city,
+                specialty: editForm.specialty,
+                score: Number.parseFloat(editForm.score) || 0,
+                slaAvg: Number.parseFloat(editForm.slaAvg) || 0,
+                status: editForm.status,
+                phone: editForm.phone,
+                email: editForm.email,
+              }
+            : o,
+        ),
+      );
+
+      setIsEditDialogOpen(false);
+    } catch (error) {
+      console.error("Erro ao atualizar oficina:", error);
+    }
+  };
+
+  const handleConfirmSuspend = async () => {
+    if (!selectedOficina) return;
+
+    try {
+      const newStatus =
+        selectedOficina.status === "Ativo" ? "Suspenso" : "Ativo";
+      const response = await fetch(`/api/oficinas/${selectedOficina.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!response.ok) throw new Error("Falha ao alterar status");
+
+      setOficinas((prev) =>
+        prev.map((o) =>
+          o.id === selectedOficina.id
+            ? { ...o, status: newStatus as Oficina["status"] }
+            : o,
+        ),
+      );
+
+      setIsSuspendDialogOpen(false);
+    } catch (error) {
+      console.error("Erro ao alterar status:", error);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedOficina) return;
+
+    try {
+      const response = await fetch(`/api/oficinas/${selectedOficina.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) throw new Error("Falha ao excluir oficina");
+
+      setOficinas((prev) => prev.filter((o) => o.id !== selectedOficina.id));
+
+      setIsDeleteDialogOpen(false);
+    } catch (error) {
+      console.error("Erro ao excluir oficina:", error);
+    }
+  };
+
+  const filteredOficinas = useMemo(
+    () =>
+      oficinas.filter((oficina) => {
+        const cityMatch = cityFilter === "Todas" || oficina.city === cityFilter;
+        const specialtyMatch =
+          specialtyFilter === "Todas" || oficina.specialty === specialtyFilter;
+
+        return cityMatch && specialtyMatch;
+      }),
+    [oficinas, cityFilter, specialtyFilter],
+  );
+
+  const totalItems = filteredOficinas.length;
+  const totalPages = Math.ceil(totalItems / LIMIT);
+
+  const paginatedOficinas = useMemo(() => {
+    const start = (currentPage - 1) * LIMIT;
+    return filteredOficinas.slice(start, start + LIMIT);
+  }, [filteredOficinas, currentPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-muted-foreground">
-          {filteredOficinas.length} oficinas encontradas
+          {totalItems} oficinas encontradas
         </h3>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {filteredOficinas.map((oficina) => (
-          <Card
-            key={oficina.id}
-            className="relative overflow-hidden transition-shadow hover:shadow-md"
-          >
-            <CardContent className="p-4">
-              <div className="mb-3 flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                    <Building2 className="h-5 w-5 text-primary" />
+      {isLoading ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {[...Array(LIMIT)].map((_, i) => (
+            <div key={i} className="h-64 animate-pulse rounded-lg bg-muted" />
+          ))}
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {paginatedOficinas.map((oficina) => (
+              <Card
+                key={oficina.id}
+                className="relative overflow-hidden transition-shadow hover:shadow-md"
+              >
+                <CardContent className="p-4">
+                  <div className="mb-3 flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                        <Building2 className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold leading-tight">
+                          {oficina.name}
+                        </h4>
+                      </div>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onSelect={() => handleOpenEdit(oficina)}
+                        >
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onSelect={() => handleOpenHistory(oficina)}
+                        >
+                          Ver Histórico de Sinistros
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onSelect={() => handleOpenSuspend(oficina)}
+                        >
+                          {oficina.status === "Ativo" ? "Suspender" : "Ativar"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onSelect={() => handleOpenDelete(oficina)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
-                  <div>
-                    <h4 className="font-semibold leading-tight">
-                      {oficina.name}
-                    </h4>
-                    <p className="text-xs text-muted-foreground">
-                      {oficina.id}
-                    </p>
+
+                  <div className="mb-3 space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <MapPin className="h-3.5 w-3.5" />
+                      <span>{oficina.city}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Wrench className="h-3.5 w-3.5" />
+                      <span>{oficina.specialty}</span>
+                    </div>
                   </div>
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <MoreHorizontal className="h-4 w-4" />
+
+                  <div className="mb-3">{renderStars(oficina.score)}</div>
+
+                  <div className="mb-3 flex items-center gap-4 text-sm">
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="font-medium">
+                        {formatSlaDays(oficina.slaAvg)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="font-medium">
+                        {formatSinistros(oficina.totalSinistros ?? 0)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mb-3 flex items-center gap-2">
+                    {getStatusBadge(oficina.status)}
+                  </div>
+
+                  <div className="flex items-center gap-2 border-t pt-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 text-xs"
+                      onClick={() =>
+                        handleCopyPhone(oficina.phone || oficina.telefone)
+                      }
+                    >
+                      <Phone className="mr-1.5 h-3.5 w-3.5" />
+                      Telefone
                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => handleOpenEdit(oficina)}>
-                      Editar
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => handleOpenHistory(oficina)}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 text-xs"
+                      onClick={() => handleCopyEmail(oficina.email)}
                     >
-                      Histórico de Sinistro
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className="text-destructive"
-                      disabled={oficina.status === "suspenso"}
-                      onSelect={() => handleOpenSuspend(oficina)}
-                    >
-                      {oficina.status === "suspenso"
-                        ? "Já Suspenso"
-                        : "Suspender"}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+                      <Mail className="mr-1.5 h-3.5 w-3.5" />
+                      E-mail
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
 
-              <div className="mb-3 space-y-2">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <MapPin className="h-3.5 w-3.5" />
-                  <span>{oficina.city}</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Wrench className="h-3.5 w-3.5" />
-                  <span>{oficina.specialty}</span>
-                </div>
-              </div>
+          {filteredOficinas.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Building2 className="mb-3 h-12 w-12 text-muted-foreground/50" />
+              <h3 className="text-lg font-medium">
+                Nenhuma oficina encontrada
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Tente ajustar os filtros de busca
+              </p>
+            </div>
+          )}
+        </>
+      )}
 
-              <div className="mb-3">{renderStars(oficina.score)}</div>
+      {/* Paginação */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-4">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
 
-              <div className="mb-3 flex items-center gap-4 text-sm">
-                <div className="flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="font-medium">{oficina.slaAvg}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="font-medium">
-                    {oficina.activeClaims} ativos
-                  </span>
-                </div>
-              </div>
+          {[...Array(totalPages)].map((_, i) => {
+            const page = i + 1;
+            if (
+              Math.abs(page - currentPage) > 1 &&
+              page !== 1 &&
+              page !== totalPages
+            ) {
+              return null;
+            }
+            return (
+              <Button
+                key={page}
+                variant={currentPage === page ? "default" : "outline"}
+                size="sm"
+                onClick={() => setCurrentPage(page)}
+              >
+                {page}
+              </Button>
+            );
+          })}
 
-              <div className="mb-3 flex items-center gap-2">
-                {getStatusBadge(oficina.status)}
-              </div>
-
-              <div className="flex items-center gap-2 border-t pt-3">
-                <Button variant="outline" size="sm" className="flex-1 text-xs">
-                  <Phone className="mr-1.5 h-3.5 w-3.5" />
-                  Ligar
-                </Button>
-                <Button variant="outline" size="sm" className="flex-1 text-xs">
-                  <Mail className="mr-1.5 h-3.5 w-3.5" />
-                  E-mail
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {filteredOficinas.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <Building2 className="mb-3 h-12 w-12 text-muted-foreground/50" />
-          <h3 className="text-lg font-medium">Nenhuma oficina encontrada</h3>
-          <p className="text-sm text-muted-foreground">
-            Tente ajustar os filtros de busca
-          </p>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
       )}
 
+      {/* Modal de Editar */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
@@ -474,93 +823,137 @@ export function OficinasList({
 
           <form onSubmit={handleSaveEdit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="oficina-name">Nome</Label>
+              <Label htmlFor="edit-name">Nome</Label>
               <Input
-                id="oficina-name"
+                id="edit-name"
                 value={editForm.name}
-                onChange={(event) =>
-                  setEditForm((prev) => ({ ...prev, name: event.target.value }))
+                onChange={(e) =>
+                  setEditForm((prev) => ({ ...prev, name: e.target.value }))
                 }
                 required
               />
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="oficina-city">Cidade</Label>
-                <Input
-                  id="oficina-city"
-                  value={editForm.city}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      city: event.target.value,
-                    }))
-                  }
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="oficina-specialty">Especialidade</Label>
-                <Input
-                  id="oficina-specialty"
-                  value={editForm.specialty}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      specialty: event.target.value,
-                    }))
-                  }
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="oficina-phone">Telefone</Label>
-                <Input
-                  id="oficina-phone"
-                  value={editForm.phone}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      phone: event.target.value,
-                    }))
-                  }
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="oficina-email">E-mail</Label>
-                <Input
-                  id="oficina-email"
-                  type="email"
-                  value={editForm.email}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      email: event.target.value,
-                    }))
-                  }
-                  required
-                />
-              </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="oficina-status">Status</Label>
+              <Label htmlFor="edit-cnpj">CNPJ</Label>
               <Input
-                id="oficina-status"
-                value={editForm.status}
-                onChange={(event) =>
+                id="edit-cnpj"
+                value={editForm.cnpj}
+                onChange={(e) =>
                   setEditForm((prev) => ({
                     ...prev,
-                    status: event.target.value as Oficina["status"],
+                    cnpj: formatCnpj(e.target.value),
                   }))
                 }
+                placeholder="00.000.000/0000-00"
                 required
               />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="edit-city">Cidade</Label>
+                <Input
+                  id="edit-city"
+                  value={editForm.city}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, city: e.target.value }))
+                  }
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-specialty">Especialidade</Label>
+                <Input
+                  id="edit-specialty"
+                  value={editForm.specialty}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      specialty: e.target.value,
+                    }))
+                  }
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="edit-phone">Telefone</Label>
+                <Input
+                  id="edit-phone"
+                  value={editForm.phone}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      phone: formatPhone(e.target.value),
+                    }))
+                  }
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-email">E-mail</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, email: e.target.value }))
+                  }
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="edit-score">Score inicial</Label>
+                <Input
+                  id="edit-score"
+                  value={editForm.score}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, score: e.target.value }))
+                  }
+                  placeholder="4.0"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-sla">SLA médio</Label>
+                <Input
+                  id="edit-sla"
+                  value={editForm.slaAvg}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, slaAvg: e.target.value }))
+                  }
+                  placeholder="3.0"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select
+                  value={editForm.status}
+                  onValueChange={(value) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      status: value as EditFormState["status"],
+                    }))
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Ativo">Ativo</SelectItem>
+                    <SelectItem value="Pendente">Pendente</SelectItem>
+                    <SelectItem value="Suspenso">Suspenso</SelectItem>
+                    <SelectItem value="Inativo">Inativo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <DialogFooter>
@@ -577,37 +970,69 @@ export function OficinasList({
         </DialogContent>
       </Dialog>
 
+      {/* Modal de Histórico de Sinistros */}
       <Dialog open={isHistoryDialogOpen} onOpenChange={setIsHistoryDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Histórico de Sinistro</DialogTitle>
+            <DialogTitle>Histórico de Sinistros</DialogTitle>
             <DialogDescription>
               {selectedOficina
-                ? `Últimos eventos da oficina ${selectedOficina.name}.`
-                : "Últimos eventos da oficina selecionada."}
+                ? `Sinistros atendidos pela oficina ${selectedOficina.name}.`
+                : "Sinistros atendidos pela oficina selecionada."}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 text-sm">
-            <div className="rounded-md border p-3">
-              <p className="font-medium">SIN-2481 • Concluído</p>
+          {isLoadingSinistros ? (
+            <div className="py-8 text-center">
+              <p className="text-muted-foreground">Carregando sinistros...</p>
+            </div>
+          ) : sinistros.length > 0 ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Protocolo</TableHead>
+                    <TableHead>Placa</TableHead>
+                    <TableHead>Veículo</TableHead>
+                    <TableHead>Data de Entrada</TableHead>
+                    <TableHead>Status Vistoria</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sinistros.map((sinistro) => (
+                    <TableRow key={sinistro.id}>
+                      <TableCell className="font-medium">
+                        {sinistro.protocol}
+                      </TableCell>
+                      <TableCell>{sinistro.placa}</TableCell>
+                      <TableCell>{sinistro.vehicle}</TableCell>
+                      <TableCell>
+                        {new Date(sinistro.entryDate).toLocaleDateString(
+                          "pt-BR",
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={getVistoriaStatusBadgeClass(
+                            sinistro.statusVistoria,
+                          )}
+                        >
+                          {sinistro.statusVistoria}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <div className="py-8 text-center">
               <p className="text-muted-foreground">
-                Atualização há 2 dias • SLA 2.9 dias
+                Nenhum sinistro encontrado para esta oficina.
               </p>
             </div>
-            <div className="rounded-md border p-3">
-              <p className="font-medium">SIN-2474 • Em Orçamento</p>
-              <p className="text-muted-foreground">
-                Atualização há 1 dia • SLA parcial 1.8 dias
-              </p>
-            </div>
-            <div className="rounded-md border p-3">
-              <p className="font-medium">SIN-2468 • Em Vistoria</p>
-              <p className="text-muted-foreground">
-                Atualização hoje • Sem atraso
-              </p>
-            </div>
-          </div>
+          )}
 
           <DialogFooter>
             <Button type="button" onClick={() => setIsHistoryDialogOpen(false)}>
@@ -617,14 +1042,19 @@ export function OficinasList({
         </DialogContent>
       </Dialog>
 
+      {/* Modal de Suspender */}
       <Dialog open={isSuspendDialogOpen} onOpenChange={setIsSuspendDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Suspender Credenciado</DialogTitle>
+            <DialogTitle>
+              {selectedOficina?.status === "Ativo"
+                ? "Suspender Credenciado"
+                : "Ativar Credenciado"}
+            </DialogTitle>
             <DialogDescription>
               {selectedOficina
-                ? `Confirma a suspensão da oficina ${selectedOficina.name}?`
-                : "Confirma a suspensão da oficina selecionada?"}
+                ? `Confirma a alteração de status da oficina ${selectedOficina.name}?`
+                : "Confirma a alteração de status da oficina selecionada?"}
             </DialogDescription>
           </DialogHeader>
 
@@ -638,10 +1068,43 @@ export function OficinasList({
             </Button>
             <Button
               type="button"
-              variant="destructive"
+              variant={
+                selectedOficina?.status === "Ativo" ? "destructive" : "default"
+              }
               onClick={handleConfirmSuspend}
             >
-              Confirmar Suspensão
+              Confirmar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Excluir */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Excluir Credenciado</DialogTitle>
+            <DialogDescription>
+              {selectedOficina
+                ? `Confirma a exclusão da oficina ${selectedOficina.name}? Esta ação não pode ser desfeita.`
+                : "Confirma a exclusão da oficina selecionada? Esta ação não pode ser desfeita."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleConfirmDelete}
+            >
+              Excluir
             </Button>
           </DialogFooter>
         </DialogContent>
