@@ -3,16 +3,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Files, UserX, Clock, Wrench, ShieldAlert } from "lucide-react";
+import {
+  UserX,
+  Clock,
+  Wrench,
+  CheckCircle2,
+  ClipboardCheck,
+} from "lucide-react";
 import {
   type DashboardFilter,
   type DashboardKpis,
 } from "@/components/dashboard/types";
 
-// ---------------------------------------------------------------------------
-// Configuração ESTÁTICA de cada card — fora do componente para não ser
-// recriada a cada render e evitar divergência SSR vs. CSR (hydration error).
-// ---------------------------------------------------------------------------
 interface CardStaticConfig {
   filterKey: DashboardFilter;
   title: string;
@@ -24,41 +26,46 @@ interface CardStaticConfig {
     variant: "default" | "secondary" | "destructive" | "outline";
     className?: string;
   };
+  bgClassName?: string;
+  /** Indica que este card representa uma ação pendente do usuário */
+  isPendingAction?: boolean;
 }
 
 const CARD_CONFIGS: CardStaticConfig[] = [
   {
-    filterKey: "total",
-    title: "Total de Sinistros",
-    subtitle: "Volume geral",
-    Icon: Files,
-  },
-  {
-    filterKey: "semVinculo",
+    filterKey: "aguardandoVinculo",
     title: "Aguardando Vínculo",
-    subtitle: "Sem oficina credenciada vinculada",
+    subtitle: "Sem credenciada vinculada",
     Icon: UserX,
   },
   {
     filterKey: "aguardandoCheckin",
     title: "Aguardando Check-in",
-    subtitle: "Agendados ou a caminho da oficina",
+    subtitle: "A caminho da oficina",
     Icon: Clock,
   },
   {
-    filterKey: "andamento",
-    title: "Em Andamento",
-    subtitle: "Veículo no pátio / Em análise",
+    filterKey: "checkinRealizado",
+    title: "Check-in Realizado",
+    subtitle: "Veículo no pátio",
+    Icon: CheckCircle2,
+  },
+  {
+    filterKey: "emVistoria",
+    title: "Em Vistoria",
+    subtitle: "Inspeção em andamento",
     Icon: Wrench,
   },
   {
-    filterKey: "inconformidades",
-    title: "Inconformidades",
-    subtitle: "Com alertas da IA",
-    Icon: ShieldAlert,
-    iconClassName: "text-orange-600",
+    filterKey: "aguardandoAceite",
+    title: "Aguardando Seu Aceite",
+    subtitle: "Ação pendente do operador",
+    Icon: ClipboardCheck,
+    isPendingAction: true,
+    bgClassName:
+      "bg-orange-50/40 border-orange-200/70 dark:bg-orange-950/20 dark:border-orange-900/40",
     badge: {
-      text: "Crítico",
+      text: "Ação",
       variant: "secondary",
       className:
         "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
@@ -79,17 +86,28 @@ function KpiCard({
   Icon,
   iconClassName,
   badge,
+  bgClassName,
+  isPendingAction,
   value,
   active,
   onClick,
 }: KpiCardProps) {
   const handleCardAction = () => onClick?.(filterKey);
 
+  const baseClass = active
+    ? "border-primary bg-primary/5 ring-1 ring-primary"
+    : bgClassName
+      ? bgClassName
+      : "";
+
+  const iconBgClass =
+    isPendingAction && !active
+      ? "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400"
+      : "bg-primary/10 text-primary";
+
   return (
     <Card
-      className={`py-4 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/50 ${
-        active ? "border-primary bg-primary/5 ring-1 ring-primary" : ""
-      }`}
+      className={`py-4 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/50 ${baseClass}`}
     >
       <div
         role="button"
@@ -126,7 +144,7 @@ function KpiCard({
             )}
           </div>
           <div
-            className={`flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary ${iconClassName ?? ""}`}
+            className={`flex h-10 w-10 items-center justify-center rounded-lg ${iconBgClass} ${iconClassName ?? ""}`}
           >
             <Icon className="h-5 w-5" />
           </div>
@@ -143,14 +161,13 @@ interface KpiCardsProps {
   isLoading?: boolean;
 }
 
-// Resolve o valor numérico do KPI pela chave, sem criar objetos intermediários.
 function getKpiValue(kpis: DashboardKpis, key: DashboardFilter): string {
   const map: Record<DashboardFilter, number> = {
-    total: kpis.total,
-    semVinculo: kpis.semVinculo,
+    aguardandoVinculo: kpis.aguardandoVinculo,
     aguardandoCheckin: kpis.aguardandoCheckin,
-    andamento: kpis.andamento,
-    inconformidades: kpis.inconformidades,
+    checkinRealizado: kpis.checkinRealizado,
+    emVistoria: kpis.emVistoria,
+    aguardandoAceite: kpis.aguardandoAceite,
   };
   return String(map[key] ?? 0);
 }
@@ -169,32 +186,31 @@ export function KpiCards({
 
   if (!mounted) {
     return (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5" />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-5" />
     );
   }
 
   if (isLoading) {
-  return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-      {Array.from({ length: 5 }).map((_, index) => (
-        <Card key={index} className="py-4">
-          <CardContent className="flex items-start justify-between gap-3">
-            <div className="flex w-full flex-col gap-2">
-              <Skeleton className="h-3 w-28" />
-              <Skeleton className="h-7 w-14" />
-              <Skeleton className="h-3 w-36" />
-            </div>
+    return (
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <Card key={index} className="py-4">
+            <CardContent className="flex items-start justify-between gap-3">
+              <div className="flex w-full flex-col gap-2">
+                <Skeleton className="h-3 w-28" />
+                <Skeleton className="h-7 w-14" />
+                <Skeleton className="h-3 w-36" />
+              </div>
+              <Skeleton className="h-10 w-10 rounded-lg" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
 
-            <Skeleton className="h-10 w-10 rounded-lg" />
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-5">
       {CARD_CONFIGS.map((config) => (
         <KpiCard
           key={config.filterKey}

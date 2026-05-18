@@ -8,6 +8,33 @@ function toText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+export async function GET() {
+  try {
+    const snap = await getAdminDb().collection("clientes").limit(200).get();
+    const clientes = snap.docs
+      .map((doc) => {
+        const data = doc.data() as Record<string, unknown>;
+        const nome = toText(data.nomeCompleto) || toText(data.nome) || doc.id;
+        const cpfCnpj = toText(data.cpfCnpj);
+        return {
+          id: doc.id,
+          label: cpfCnpj ? `${nome} • ${cpfCnpj}` : nome,
+        };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    return NextResponse.json({ clientes });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Erro ao listar clientes.";
+
+    return NextResponse.json(
+      { error: "Falha ao listar clientes.", details: message },
+      { status: 500 },
+    );
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));

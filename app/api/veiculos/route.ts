@@ -8,6 +8,44 @@ function toText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const clienteIdFiltro = toText(searchParams.get("clienteId"));
+
+    let query = getAdminDb().collection("veiculos").limit(200);
+    if (clienteIdFiltro) {
+      query = query.where("clienteId", "==", clienteIdFiltro).limit(200);
+    }
+
+    const snap = await query.get();
+    const veiculos = snap.docs
+      .map((doc) => {
+        const data = doc.data() as Record<string, unknown>;
+        const placa = toText(data.placa).toUpperCase() || "SEM-PLACA";
+        const marca = toText(data.marca);
+        const modelo = toText(data.modelo);
+        const clienteId = toText(data.clienteId);
+        return {
+          id: doc.id,
+          label: `${placa} • ${[marca, modelo].filter(Boolean).join(" ")}`,
+          clienteId,
+        };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    return NextResponse.json({ veiculos });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Erro ao listar veículos.";
+
+    return NextResponse.json(
+      { error: "Falha ao listar veículos.", details: message },
+      { status: 500 },
+    );
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));

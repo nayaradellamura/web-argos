@@ -1,18 +1,25 @@
+import type { SinistroStatus } from "@/lib/types/firestore";
+
+/** Filtros clicáveis nos KPI cards (sem "total" e sem "inconformidades") */
 export type DashboardFilter =
-  | "total"
-  | "semVinculo"
+  | "aguardandoVinculo"
   | "aguardandoCheckin"
-  | "andamento"
-  | "inconformidades";
+  | "checkinRealizado"
+  | "emVistoria"
+  | "aguardandoAceite";
+
+/** Tipo da tabela independente exibida no corpo da página */
+export type TipoTabela = "geral" | "rejeitadas" | "alertasIA";
 
 export type SlaHealth = "healthy" | "warning" | "critical";
 
+/** Agora com apenas 5 propriedades (sem `total` e sem `totalInconformidades`) */
 export interface DashboardKpis {
-  total: number;
-  semVinculo: number;
+  aguardandoVinculo: number;
   aguardandoCheckin: number;
-  andamento: number;
-  inconformidades: number;
+  checkinRealizado: number;
+  emVistoria: number;
+  aguardandoAceite: number;
 }
 
 export interface DashboardClaim {
@@ -28,25 +35,11 @@ export interface DashboardClaim {
     | "Média"
     | "Alta"
     | "Crítica";
-  status:
-    | "Aberto"
-    | "Em Analise"
-    | "Em andamento"
-    | "Pendente"
-    | "Concluído"
-    | "Liquidado";
+  /** Status macro do sinistro (3 valores definitivos do backend) */
+  status: SinistroStatus | string;
+  /** Campo exclusivo da tabela "Rejeitadas" */
+  motivoRejeicao?: string;
   dataHora?: string;
-  vistoriaStatus?:
-    | "Aguardando vínculo"
-    | "Aguardando check-in"
-    | "aguardando check-in"
-    | "Pendente"
-    | "pendente"
-    | "Agendada"
-    | "Em andamento"
-    | "Em check-in"
-    | "Realizada"
-    | "Abandonada";
   transcriptionStatus?: "pending" | "done";
   hasCriticalIaAlert?: boolean;
   daysInStage?: number;

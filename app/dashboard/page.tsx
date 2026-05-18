@@ -1,275 +1,215 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { PageHeader } from "@/components/layout/page-header";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { SeverityChart } from "@/components/dashboard/severity-chart";
 import { RecentClaimsTable } from "@/components/dashboard/recent-claims-table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   type DashboardClaim,
   type DashboardFilter,
   type DashboardKpis,
+  type TipoTabela,
 } from "@/components/dashboard/types";
 
 const PAGE_SIZE = 5;
 
-export default function DashboardPage() {
-  // Estados de Controle
-  const [activeFilter, setActiveFilter] = useState<DashboardFilter | null>(
-    null,
-  );
-  const [searchQuery, setSearchQuery] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [kpis, setKpis] = useState<DashboardKpis>({
-    total: 0,
-    semVinculo: 0,
-    aguardandoCheckin: 0,
-    andamento: 0,
-    inconformidades: 0,
-  });
-  const [recentClaims, setRecentClaims] = useState<DashboardClaim[]>([]);
-  const [totalFiltered, setTotalFiltered] = useState(0);
-  const [chartData, setChartData] = useState<
-    Array<{
-      name: string;
-      Leve: number;
-      Media: number;
-      GrandeMonta: number;
-    }>
-  >([]);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
-  const [isTableLoading, setIsTableLoading] = useState(false);
+// ─── Normalização de sinistro vindo de /api/sinistros ────────────────────────
 
-  // Função para normalizar sinistro
-  const normalizeClaim = (
-    rawClaim: Record<string, unknown>,
-  ): DashboardClaim => {
-    const status = String(
-      rawClaim.status ?? "Pendente",
-    ) as DashboardClaim["status"];
-    const statusNormalized = status.toLowerCase();
-
-    const derivedHealth: DashboardClaim["slaHealth"] =
-      statusNormalized === "concluído" || statusNormalized === "liquidado"
-        ? "healthy"
-        : statusNormalized === "em andamento"
-          ? "warning"
-          : statusNormalized === "pendente"
-            ? "warning"
-            : "critical";
-
-    const normalizedSeverity = String(rawClaim.severidade ?? "Media");
-    const severityMap: Record<string, DashboardClaim["severidade"]> = {
-      baixa: "Baixa",
-      leve: "Leve",
-      media: "Media",
-      média: "Média",
-      alta: "Alta",
-      crítica: "Crítica",
-      critica: "Crítica",
-      "grande monta": "Grande Monta",
-    };
-
-    const severityKey = normalizedSeverity.toLowerCase();
-
-    return {
-      id: String(rawClaim.id ?? "-"),
-      placa: String(rawClaim.placa ?? "-"),
-      oficina: String(rawClaim.oficina ?? "-"),
-      credenciadoId:
-        rawClaim.credenciadoId === undefined
-          ? undefined
-          : rawClaim.credenciadoId === null
-            ? null
-            : String(rawClaim.credenciadoId),
-      severidade: severityMap[severityKey] ?? "Media",
-      status,
-      dataHora:
-        typeof rawClaim.dataHora === "string" && rawClaim.dataHora.trim()
-          ? rawClaim.dataHora
-          : "-",
-      vistoriaStatus:
-        typeof rawClaim.vistoriaStatus === "string"
-          ? (rawClaim.vistoriaStatus as DashboardClaim["vistoriaStatus"])
-          : undefined,
-      transcriptionStatus:
-        rawClaim.transcriptionStatus === "done" ? "done" : "pending",
-      hasCriticalIaAlert: Boolean(rawClaim.hasCriticalIaAlert),
-      daysInStage:
-        typeof rawClaim.daysInStage === "number" ? rawClaim.daysInStage : 0,
-      slaLimitDays:
-        typeof rawClaim.slaLimitDays === "number" ? rawClaim.slaLimitDays : 5,
-      slaHealth:
-        rawClaim.slaHealth === "healthy" ||
-        rawClaim.slaHealth === "warning" ||
-        rawClaim.slaHealth === "critical"
-          ? rawClaim.slaHealth
-          : derivedHealth,
-    };
+function normalizeSinistro(raw: Record<string, unknown>): DashboardClaim {
+  const severityMap: Record<string, DashboardClaim["severidade"]> = {
+    baixa: "Baixa",
+    leve: "Leve",
+    media: "Media",
+    média: "Média",
+    alta: "Alta",
+    crítica: "Crítica",
+    critica: "Crítica",
+    "grande monta": "Grande Monta",
   };
+  return {
+    id: String(raw.id ?? "-"),
+    placa: String(raw.placa ?? "-"),
+    oficina: String(raw.oficina ?? "-"),
+    status: String(raw.status ?? "PENDENTE"),
+    severidade:
+      severityMap[String(raw.severidade ?? "").toLowerCase()] ?? "Media",
+    motivoRejeicao:
+      typeof raw.motivoRejeicao === "string" ? raw.motivoRejeicao : undefined,
+  };
+}
 
-  // useEffect para sincronizar com a API quando mudam página, filtro ou busca
+// ─── Hook genérico para uma tabela de sinistros independente ─────────────────
+
+function useSinistrosTable(
+  tipo: TipoTabela,
+  activeFilter?: DashboardFilter | null,
+) {
+  const [claims, setClaims] = useState<DashboardClaim[]>([]);
+  const [totalFiltered, setTotalFiltered] = useState(0);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
     let isMounted = true;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-    const fetchDashboardData = async () => {
-      const isFirstLoad = isInitialLoading;
-
+    const timeoutId = setTimeout(async () => {
+      setIsLoading(true);
       try {
-        if (isFirstLoad) {
-          setIsInitialLoading(true);
-        } else {
-          setIsTableLoading(true);
+        const params = new URLSearchParams();
+        const normalizedSearch = search.trim().toUpperCase();
+
+        if (tipo === "geral" && activeFilter) {
+          params.set("page", String(page));
+          params.set("limit", String(PAGE_SIZE));
+          params.set("filter", activeFilter);
+          if (normalizedSearch) {
+            params.set("search", normalizedSearch);
+          }
+
+          const res = await fetch(`/api/dashboard?${params.toString()}`);
+          if (!res.ok) throw new Error(`dashboard fetch failed: ${res.status}`);
+
+          const data = (await res.json()) as {
+            recentClaims?: unknown[];
+            totalFiltered?: number;
+          };
+          if (!isMounted) return;
+          const raw = Array.isArray(data.recentClaims) ? data.recentClaims : [];
+          setClaims(
+            raw.map((r) => normalizeSinistro(r as Record<string, unknown>)),
+          );
+          setTotalFiltered(data.totalFiltered ?? 0);
+          return;
         }
 
-        // Construir URL com query params
-        const params = new URLSearchParams();
-        params.set("page", String(currentPage));
+        params.set("tipo", tipo);
+        params.set("page", String(page));
         params.set("limit", String(PAGE_SIZE));
-        if (activeFilter && activeFilter !== "total") {
-          params.set("filter", activeFilter);
-        }
-        const normalizedSearch = searchQuery.toUpperCase().trim();
         if (normalizedSearch) {
           params.set("search", normalizedSearch);
         }
 
-        const url = `/api/dashboard?${params.toString()}`;
-        const response = await fetch(url);
-
-        if (!response.ok) {
-          const errorBody = await response.json().catch(() => ({}));
-          console.error("Falha ao carregar dados do dashboard", {
-            status: response.status,
-            statusText: response.statusText,
-            details: errorBody,
-            page: currentPage,
-            filter: activeFilter,
-            search: normalizedSearch,
-          });
-
-          if (!isMounted) {
-            return;
-          }
-
-          setRecentClaims([]);
+        const res = await fetch(`/api/sinistros?${params.toString()}`);
+        if (!res.ok) throw new Error(`sinistros fetch failed: ${res.status}`);
+        const data = (await res.json()) as {
+          sinistros?: unknown[];
+          totalFiltered?: number;
+        };
+        if (!isMounted) return;
+        const raw = Array.isArray(data.sinistros) ? data.sinistros : [];
+        setClaims(
+          raw.map((r) => normalizeSinistro(r as Record<string, unknown>)),
+        );
+        setTotalFiltered(data.totalFiltered ?? 0);
+      } catch (err) {
+        console.error(`[useSinistrosTable:${tipo}]`, err);
+        if (isMounted) {
+          setClaims([]);
           setTotalFiltered(0);
-          return;
         }
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    }, 350);
 
-        const data = await response.json();
-        const apiKpis = data?.kpis ?? {};
-        const apiRecentClaimsRaw = data?.recentClaims;
-        const apiTotalFiltered = data?.totalFiltered ?? 0;
-        const apiChartDataRaw = data?.chartData;
+    return () => {
+      clearTimeout(timeoutId);
+      isMounted = false;
+    };
+  }, [tipo, page, search, activeFilter]);
 
-        const normalizedClaims = Array.isArray(apiRecentClaimsRaw)
-          ? apiRecentClaimsRaw.map((claim) =>
-              normalizeClaim(claim as Record<string, unknown>),
-            )
-          : [];
+  const handleSearchChange = useCallback((q: string) => {
+    setPage(1);
+    setSearch(q);
+  }, []);
 
-        const pendingFallback = normalizedClaims.filter((claim) => {
-          const statusNormalized = claim.status.toLowerCase();
-          const vistoriaStatusNormalized = (
-            claim.vistoriaStatus ?? ""
-          ).toLowerCase();
-          return (
-            statusNormalized === "pendente" ||
-            vistoriaStatusNormalized === "pendente" ||
-            vistoriaStatusNormalized === "aguardando check-in"
-          );
-        }).length;
+  return {
+    claims,
+    totalFiltered,
+    page,
+    setPage,
+    search,
+    handleSearchChange,
+    isLoading,
+  };
+}
 
-        const normalizedChartData = Array.isArray(apiChartDataRaw)
-          ? (apiChartDataRaw as Array<{
+// ─── Página Principal do Dashboard ──────────────────────────────────────────
+
+export default function DashboardPage() {
+  // KPI cards — consumem /api/dashboard para contadores
+  const [kpis, setKpis] = useState<DashboardKpis>({
+    aguardandoVinculo: 0,
+    aguardandoCheckin: 0,
+    checkinRealizado: 0,
+    emVistoria: 0,
+    aguardandoAceite: 0,
+  });
+  const [isKpiLoading, setIsKpiLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState<DashboardFilter | null>(
+    null,
+  );
+  const [secondaryTab, setSecondaryTab] = useState<"rejeitadas" | "alertasIA">(
+    "rejeitadas",
+  );
+  const [chartData, setChartData] = useState<
+    Array<{ name: string; Leve: number; Media: number; GrandeMonta: number }>
+  >([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchKpis = async () => {
+      try {
+        const res = await fetch("/api/dashboard?page=1&limit=1");
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          kpis?: Partial<
+            DashboardKpis & { total?: number; totalInconformidades?: number }
+          >;
+          chartData?: unknown[];
+        };
+        if (!isMounted) return;
+        const k = data.kpis ?? {};
+        setKpis({
+          aguardandoVinculo: Number(k.aguardandoVinculo ?? 0),
+          aguardandoCheckin: Number(k.aguardandoCheckin ?? 0),
+          checkinRealizado: Number(k.checkinRealizado ?? 0),
+          emVistoria: Number(k.emVistoria ?? 0),
+          aguardandoAceite: Number(k.aguardandoAceite ?? 0),
+        });
+        if (Array.isArray(data.chartData)) {
+          setChartData(
+            data.chartData as Array<{
               name: string;
               Leve: number;
               Media: number;
               GrandeMonta: number;
-            }>)
-          : [];
-
-        if (!isMounted) {
-          return;
+            }>,
+          );
         }
-
-        setKpis({
-          total: Number(apiKpis?.total ?? normalizedClaims.length),
-          semVinculo: Number(
-            apiKpis?.semVinculo ?? apiKpis?.pendentes ?? pendingFallback,
-          ),
-          aguardandoCheckin: Number(
-            apiKpis?.aguardandoCheckin ??
-              apiKpis?.pendentesCheckin ??
-              pendingFallback,
-          ),
-          andamento: Number(
-            apiKpis?.andamento ??
-              normalizedClaims.filter(
-                (claim) => claim.status.toLowerCase() === "em andamento",
-              ).length,
-          ),
-          inconformidades: Number(apiKpis?.inconformidades ?? 0),
-        });
-
-        setRecentClaims(normalizedClaims);
-        setTotalFiltered(apiTotalFiltered);
-        setChartData(normalizedChartData);
-      } catch (error) {
-        if (!isMounted) {
-          return;
-        }
-
-        console.error("Erro ao buscar dados do dashboard", {
-          error,
-          page: currentPage,
-          filter: activeFilter,
-          search: searchQuery.toUpperCase().trim(),
-        });
-
-        setRecentClaims([]);
-        setTotalFiltered(0);
+      } catch (err) {
+        console.error("[DashboardPage] kpi fetch error", err);
       } finally {
-        if (isMounted) {
-          setIsInitialLoading(false);
-          setIsTableLoading(false);
-        }
+        if (isMounted) setIsKpiLoading(false);
       }
     };
-
-    timeoutId = setTimeout(() => {
-      void fetchDashboardData();
-    }, 500);
-
+    void fetchKpis();
     return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
       isMounted = false;
     };
-  }, [currentPage, activeFilter, searchQuery]);
+  }, []);
 
-  // Reset de página quando filtro ou busca mudam
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [activeFilter]);
+  const handleFilterChange = useCallback((filter: DashboardFilter) => {
+    setActiveFilter((current) => (current === filter ? null : filter));
+  }, []);
 
-  // Handler para mudança de filtro
-  const handleFilterChange = (filter: DashboardFilter) => {
-    setActiveFilter((currentFilter) =>
-      currentFilter === filter ? null : filter,
-    );
-  };
-
-  // Handler para busca
-  const handleSearchChange = (query: string) => {
-    setCurrentPage(1);
-    setSearchQuery(query);
-  };
-
+  // Tabelas independentes — cada uma gerencia seu próprio estado
+  const geral = useSinistrosTable("geral", activeFilter);
+  const rejeitadas = useSinistrosTable("rejeitadas");
+  const alertasIA = useSinistrosTable("alertasIA");
 
   return (
     <AppLayout>
@@ -279,28 +219,95 @@ export default function DashboardPage() {
           description="Painel de controle e monitoramento de sinistros"
         />
 
+        {/* KPI Cards — 5 colunas, card de aceite com destaque laranja */}
         <KpiCards
           kpis={kpis}
           activeFilter={activeFilter}
           onFilterChange={handleFilterChange}
-          isLoading={isInitialLoading}
+          isLoading={isKpiLoading}
         />
 
-        <div className="w-full">
+        {/* 3 Tabelas Independentes (separadas) */}
+        <div className="space-y-6">
           <RecentClaimsTable
-            claims={recentClaims}
-            activeFilter={activeFilter}
-            searchQuery={searchQuery}
-            onSearchChange={handleSearchChange}
-            currentPage={currentPage}
-            onPageChange={setCurrentPage}
-            totalFiltered={totalFiltered}
+            title="Visão Geral de Sinistros"
+            description="Todos os sinistros registrados no sistema"
+            claims={geral.claims}
+            searchQuery={geral.search}
+            onSearchChange={geral.handleSearchChange}
+            currentPage={geral.page}
+            onPageChange={geral.setPage}
+            totalFiltered={geral.totalFiltered}
             pageSize={PAGE_SIZE}
-            isTableLoading={isInitialLoading || isTableLoading}
-            onResetFilters={() => setActiveFilter(null)}
+            isTableLoading={geral.isLoading}
           />
+
+          <div className="space-y-4">
+            <Tabs
+              value={secondaryTab}
+              onValueChange={(value) =>
+                setSecondaryTab(value as "rejeitadas" | "alertasIA")
+              }
+              className="w-full"
+            >
+              <TabsList className="h-auto w-full justify-start gap-2 rounded-md bg-transparent p-0">
+                <TabsTrigger
+                  value="rejeitadas"
+                  className="inline-flex items-center gap-2 rounded-md border px-3 py-2 data-[state=active]:border-primary data-[state=active]:bg-primary/5"
+                >
+                  <span>Vistorias Rejeitadas</span>
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1 text-[11px] font-medium text-muted-foreground">
+                    {rejeitadas.totalFiltered}
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="alertasIA"
+                  className="inline-flex items-center gap-2 rounded-md border px-3 py-2 data-[state=active]:border-primary data-[state=active]:bg-primary/5"
+                >
+                  <span>Vistorias com Inconformidade</span>
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1 text-[11px] font-medium text-muted-foreground">
+                    {alertasIA.totalFiltered}
+                  </span>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {secondaryTab === "rejeitadas" ? (
+              <RecentClaimsTable
+                title="Vistorias Rejeitadas"
+                description="Sinistros em andamento com vistoria reprovada — requer nova inspeção"
+                claims={rejeitadas.claims}
+                searchQuery={rejeitadas.search}
+                onSearchChange={rejeitadas.handleSearchChange}
+                currentPage={rejeitadas.page}
+                onPageChange={rejeitadas.setPage}
+                totalFiltered={rejeitadas.totalFiltered}
+                pageSize={PAGE_SIZE}
+                isTableLoading={rejeitadas.isLoading}
+                showMotivoRejeicao
+                emptyStateMessage="Nenhuma vistoria no momento."
+                emptyStateIcon="check"
+              />
+            ) : (
+              <RecentClaimsTable
+                title="Alertas de Inconformidade da IA"
+                description="Casos em análise operacional com alertas gerados pelo motor de IA"
+                claims={alertasIA.claims}
+                searchQuery={alertasIA.search}
+                onSearchChange={alertasIA.handleSearchChange}
+                currentPage={alertasIA.page}
+                onPageChange={alertasIA.setPage}
+                totalFiltered={alertasIA.totalFiltered}
+                pageSize={PAGE_SIZE}
+                isTableLoading={alertasIA.isLoading}
+                emptyStateMessage="Nenhum alerta no momento."
+                emptyStateIcon="shield"
+              />
+            )}
+          </div>
         </div>
 
+        {/* Gráfico de Severidade */}
         <div className="w-full">
           <SeverityChart chartData={chartData} />
         </div>

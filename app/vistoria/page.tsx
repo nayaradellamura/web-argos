@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { PageHeader } from "@/components/layout/page-header";
@@ -24,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { LoadingScreen } from "@/components/layout/loading-screen";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -231,7 +230,7 @@ export default function VistoriaPage() {
   >([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<LifecycleTab>("pendentes_vinculo");
-  const [isTabLoading, setIsTabLoading] = useState(false);
+  const [isTabLoading, setIsTabLoading] = useState(true);
   const [selectedInspecao, setSelectedInspecao] = useState<InspecaoData | null>(
     null,
   );
@@ -523,9 +522,40 @@ export default function VistoriaPage() {
   };
 
   const renderTabSkeleton = () => {
-    if (filteredByTabAndSearch.length === 0) {
-      return renderEmptyState("pendentes_vinculo");
-    }
+    return (
+      <div className="space-y-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <Card key={`vistoria-skeleton-${index}`}>
+            <CardContent className="pt-6">
+              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                <div className="flex-1 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Skeleton className="h-6 w-24" />
+                        <Skeleton className="h-6 w-28 rounded-full" />
+                      </div>
+                      <Skeleton className="h-4 w-40" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-56" />
+                    <Skeleton className="h-4 w-64" />
+                    <Skeleton className="h-4 w-44" />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-9 w-24 rounded-md" />
+                  <Skeleton className="h-9 w-24 rounded-md" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
   };
 
   const renderEmptyState = (tab: LifecycleTab) => {
@@ -828,16 +858,24 @@ export default function VistoriaPage() {
               </TabsList>
 
               <TabsContent value="pendentes_vinculo" className="mt-0">
-                {renderInspectionCards("pendentes_vinculo")}
+                {isTabLoading
+                  ? renderTabSkeleton()
+                  : renderInspectionCards("pendentes_vinculo")}
               </TabsContent>
               <TabsContent value="em_andamento" className="mt-0">
-                {renderInspectionCards("em_andamento")}
+                {isTabLoading
+                  ? renderTabSkeleton()
+                  : renderInspectionCards("em_andamento")}
               </TabsContent>
               <TabsContent value="em_analise" className="mt-0">
-                {renderInspectionCards("em_analise")}
+                {isTabLoading
+                  ? renderTabSkeleton()
+                  : renderInspectionCards("em_analise")}
               </TabsContent>
               <TabsContent value="concluidas" className="mt-0">
-                {renderInspectionCards("concluidas")}
+                {isTabLoading
+                  ? renderTabSkeleton()
+                  : renderInspectionCards("concluidas")}
               </TabsContent>
             </Tabs>
           </CardContent>
@@ -1167,54 +1205,6 @@ export default function VistoriaPage() {
           </form>
         </DialogContent>
       </Dialog>
-
-      {/* Overlay de carregamento */}
-      {isTabLoading && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-          <div className="flex flex-col items-center gap-6 rounded-lg bg-white p-8 shadow-lg">
-            {/* Logo ARGOS */}
-            <div className="flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-white">
-                <Image
-                  src="/icon.svg"
-                  alt="ARGOS"
-                  width={24}
-                  height={24}
-                  className="h-6 w-6"
-                />
-              </div>
-              <span className="text-lg font-bold text-foreground">ARGOS</span>
-            </div>
-
-            {/* Spinner */}
-            <svg
-              className="h-6 w-6 animate-spin text-primary"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-              />
-            </svg>
-
-            {/* Message */}
-            <span className="text-sm text-muted-foreground">
-              Carregando vistorias...
-            </span>
-          </div>
-        </div>
-      )}
     </AppLayout>
   );
 }

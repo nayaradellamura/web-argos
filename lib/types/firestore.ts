@@ -1,20 +1,76 @@
 import { Timestamp } from "firebase/firestore";
 
+// Coleção `sinistros` — campo `status`
+export type SinistroStatus = "PENDENTE" | "EM_ANDAMENTO" | "FINALIZADO";
+
+// Coleção `vistorias` — campo `status`
+export type VistoriaStatus =
+  | "EM_ANDAMENTO"
+  | "EM_ANALISE_IA"
+  | "EM_ANALISE_OPERACIONAL"
+  | "FINALIZADA"
+  | "REJEITADA";
+
+// Estágios do Kanban gerencial (campo `stage`) — mantido para compatibilidade
 export type SinistroStage =
   | "fnol" | "validacao" | "vistoria"
   | "orcamento" | "regulacao" | "liquidacao";
 
+export interface ClienteSnapshot {
+  nome?: string;
+  cpf?: string;
+  email?: string;
+  telefone?: string;
+}
+
+export interface VeiculoSnapshot {
+  placa?: string;
+  marca?: string;
+  modelo?: string;
+  ano?: string | number;
+  chassi?: string;
+  cor?: string;
+}
+
+export interface SeguradoraSnapshot {
+  name?: string;
+  cnpj?: string;
+}
+
+export interface CredenciadoSnapshot {
+  name?: string;
+  cnpj?: string;
+  cidade?: string;
+  telefone?: string;
+}
+
 export interface Sinistro {
   id: string;
-  vehicle: string;
-  plate: string;
-  workshop: string;
-  entryDate: string;
-  priority: "within-sla" | "attention" | "delayed";
-  daysInStage: number;
-  status: SinistroStage;
-  credenciado?: string;
-  statusVistoria?: "agendada" | "realizada" | "pendente";
+  protocol: string;
+  status: SinistroStatus;
+  priority: string;
+  claimType?: string;
+  damageDescription?: string;
+  observations?: string;
+  clienteId: string;
+  veiculoId: string;
+  seguradoraId: string;
+  credenciadoId?: string | null;
+  checkInAt?: Timestamp | null;
+  entryDate?: Timestamp | string;
+  clienteSnapshot?: ClienteSnapshot;
+  veiculoSnapshot?: VeiculoSnapshot;
+  seguradorasSnapshot?: SeguradoraSnapshot;
+  credenciadoSnapshot?: CredenciadoSnapshot | null;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface Vistoria {
+  id: string;
+  sinistroId: string;
+  status: VistoriaStatus;
+  motivoRejeicao?: string;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }
