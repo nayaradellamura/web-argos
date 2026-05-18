@@ -258,7 +258,7 @@ export function RecentClaimsTable({
                     <TableRow key={claim.id}>
                       <TableCell className="font-medium text-primary">
                         <Link
-                          href={`/orquestracao?sinistro=${claim.id.replace("#", "")}`}
+                          href={`/orquestracao?protocolo=${encodeURIComponent(claim.id.replace("#", ""))}`}
                           className="underline-offset-4 hover:underline"
                         >
                           {claim.id}

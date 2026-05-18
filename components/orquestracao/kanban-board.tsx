@@ -1,7 +1,15 @@
 "use client";
 
-import { memo, type DragEvent, useCallback, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import {
+  memo,
+  type DragEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import {
   AlertCircle,
@@ -640,6 +648,9 @@ const KanbanColumn = memo(function KanbanColumn({
 
 export function KanbanBoard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const protocoloParaAbrir = searchParams.get("protocolo");
+  const deepLinkHandledRef = useRef(false);
   const [search, setSearch] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
@@ -1077,6 +1088,38 @@ export function KanbanBoard() {
       setDetailsHistorico({ isLoading: false, vistorias: [] });
     }
   };
+
+  useEffect(() => {
+    if (!protocoloParaAbrir) {
+      deepLinkHandledRef.current = false;
+      return;
+    }
+
+    if (isLoading || deepLinkHandledRef.current) {
+      return;
+    }
+
+    const protocoloNormalizado = protocoloParaAbrir
+      .trim()
+      .replace(/^#/, "")
+      .toLowerCase();
+    const allCards = (Object.keys(columns) as KanbanColumnId[]).flatMap(
+      (columnId) => columns[columnId],
+    );
+    const cardEncontrado = allCards.find(
+      (card) =>
+        card.protocol.trim().replace(/^#/, "").toLowerCase() ===
+        protocoloNormalizado,
+    );
+
+    if (!cardEncontrado) {
+      return;
+    }
+
+    deepLinkHandledRef.current = true;
+    void openDetailsModal(cardEncontrado);
+    router.replace("/orquestracao", { scroll: false });
+  }, [columns, isLoading, openDetailsModal, protocoloParaAbrir, router]);
 
   const closeDetailsModal = useCallback(() => {
     setDetailsModal({
