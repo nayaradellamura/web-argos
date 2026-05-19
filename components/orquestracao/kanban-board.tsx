@@ -173,6 +173,26 @@ interface VistoriaHistorico {
   motivoRejeicao?: string | null;
 }
 
+function normalizeProtocolValue(value?: string | null) {
+  return String(value ?? "")
+    .trim()
+    .replace(/^#/, "")
+    .toLowerCase();
+}
+
+function findCardByProtocol(
+  columns: Record<KanbanColumnId, KanbanCard[]>,
+  protocol: string,
+) {
+  const normalizedProtocol = normalizeProtocolValue(protocol);
+
+  return (Object.keys(columns) as KanbanColumnId[])
+    .flatMap((columnId) => columns[columnId])
+    .find(
+      (card) => normalizeProtocolValue(card.protocol) === normalizedProtocol,
+    );
+}
+
 function normalizeAlerta(raw: Record<string, unknown>): AlertaIA {
   const typeRaw = String(raw.type ?? raw.tipo ?? "info").toLowerCase();
   const type: AlertaIA["type"] =
@@ -325,7 +345,7 @@ function formatStatus(status: string): string {
     EM_ANDAMENTO: "Em Andamento",
     FINALIZADO: "Finalizado",
     EM_ANALISE_IA: "Em Análise pela IA",
-    EM_ANALISE_OPERACIONAL: "Em Análise Operacional",
+    EM_ANALISE_OPERACIONAL: "Em Análise",
     FINALIZADA: "Finalizada",
     REJEITADA: "Rejeitada",
   };
@@ -507,7 +527,7 @@ const KanbanCardItem = memo(function KanbanCardItem({
             }}
           >
             <ClipboardCheck className="h-3.5 w-3.5" />
-            Finalizar Vistoria
+            Finalizar
           </Button>
         )}
       </CardContent>
@@ -532,6 +552,10 @@ const KanbanColumn = memo(function KanbanColumn({
   onQuickLink,
   onQuickAnalyze,
 }: KanbanColumnProps) {
+  const retificacaoCount =
+    column.id === "emVistoria" ? cards.filter((c) => c.isRejected).length : 0;
+  const hasRetificacao = retificacaoCount > 0;
+
   const handleColumnDragOver = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
@@ -557,18 +581,24 @@ const KanbanColumn = memo(function KanbanColumn({
       onDragLeave={onDragLeave}
       onDrop={handleColumnDrop}
     >
-      <div className="sticky top-0 z-10 mb-3 flex items-center justify-between gap-2 bg-card py-1">
-        <div className="flex items-center gap-2">
-          <span
-            className={cn("h-2.5 w-2.5 rounded-full", column.dotClassName)}
-          />
-          <h3 className="text-sm font-semibold text-foreground">
-            {column.title}
-          </h3>
+      <div className="sticky top-0 z-10 mb-3 bg-card py-1">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "h-2.5 w-2.5 rounded-full",
+                column.dotClassName,
+                hasRetificacao && "ring-2 ring-orange-200",
+              )}
+            />
+            <h3 className={cn("text-sm font-semibold text-foreground")}>
+              {column.title}
+            </h3>
+          </div>
+          <Badge variant="secondary" className="text-xs">
+            {cards.length}
+          </Badge>
         </div>
-        <Badge variant="secondary" className="text-xs">
-          {cards.length}
-        </Badge>
       </div>
 
       <div className="max-h-[calc(100vh-285px)] space-y-3 overflow-y-auto pb-1 pt-1 pr-1 scrollbar-thin scrollbar-thumb-gray-300">
@@ -586,25 +616,11 @@ const KanbanColumn = memo(function KanbanColumn({
               const retificacao = cards.filter((c) => c.isRejected);
               return (
                 <>
-                  {vistoriasNormais.map((card) => (
-                    <KanbanCardItem
-                      key={card.id}
-                      card={card}
-                      columnId={column.id}
-                      draggingCardId={draggingCardId}
-                      onDragStartCard={onDragStartCard}
-                      onDragEndCard={onDragEndCard}
-                      onEditCard={onEditCard}
-                      onDeleteCard={onDeleteCard}
-                      onViewCard={onViewCard}
-                      onQuickLink={onQuickLink}
-                      onQuickAnalyze={onQuickAnalyze}
-                    />
-                  ))}
                   {retificacao.length > 0 && (
                     <>
-                      <div className="w-full border-t-2 border-dashed border-orange-300 my-4 pt-4 text-center text-orange-600 font-bold text-sm uppercase tracking-wider">
-                        Retificação
+                      <div className="w-full border-t-2 border-dashed border-orange-300 my-5" />
+                      <div className="w-full text-center text-orange-600 font-bold text-sm uppercase tracking-wider mb-2 mt-1">
+                        Retificação ({retificacao.length})
                       </div>
                       {retificacao.map((card) => (
                         <KanbanCardItem
@@ -621,8 +637,24 @@ const KanbanColumn = memo(function KanbanColumn({
                           onQuickAnalyze={onQuickAnalyze}
                         />
                       ))}
+                      <div className="w-full border-t-2 border-dashed border-orange-300 my-5" />
                     </>
                   )}
+                  {vistoriasNormais.map((card) => (
+                    <KanbanCardItem
+                      key={card.id}
+                      card={card}
+                      columnId={column.id}
+                      draggingCardId={draggingCardId}
+                      onDragStartCard={onDragStartCard}
+                      onDragEndCard={onDragEndCard}
+                      onEditCard={onEditCard}
+                      onDeleteCard={onDeleteCard}
+                      onViewCard={onViewCard}
+                      onQuickLink={onQuickLink}
+                      onQuickAnalyze={onQuickAnalyze}
+                    />
+                  ))}
                 </>
               );
             })()
@@ -651,6 +683,7 @@ export function KanbanBoard() {
   const searchParams = useSearchParams();
   const protocoloParaAbrir = searchParams.get("protocolo");
   const deepLinkHandledRef = useRef(false);
+  const deepLinkLookupInFlightRef = useRef(false);
   const [search, setSearch] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
@@ -1089,38 +1122,6 @@ export function KanbanBoard() {
     }
   };
 
-  useEffect(() => {
-    if (!protocoloParaAbrir) {
-      deepLinkHandledRef.current = false;
-      return;
-    }
-
-    if (isLoading || deepLinkHandledRef.current) {
-      return;
-    }
-
-    const protocoloNormalizado = protocoloParaAbrir
-      .trim()
-      .replace(/^#/, "")
-      .toLowerCase();
-    const allCards = (Object.keys(columns) as KanbanColumnId[]).flatMap(
-      (columnId) => columns[columnId],
-    );
-    const cardEncontrado = allCards.find(
-      (card) =>
-        card.protocol.trim().replace(/^#/, "").toLowerCase() ===
-        protocoloNormalizado,
-    );
-
-    if (!cardEncontrado) {
-      return;
-    }
-
-    deepLinkHandledRef.current = true;
-    void openDetailsModal(cardEncontrado);
-    router.replace("/orquestracao", { scroll: false });
-  }, [columns, isLoading, openDetailsModal, protocoloParaAbrir, router]);
-
   const closeDetailsModal = useCallback(() => {
     setDetailsModal({
       open: false,
@@ -1131,6 +1132,86 @@ export function KanbanBoard() {
     setDetailsAlertas({ isLoading: false, alertas: [] });
     setDetailsHistorico({ isLoading: false, vistorias: [] });
   }, []);
+
+  useEffect(() => {
+    if (!protocoloParaAbrir) {
+      deepLinkHandledRef.current = false;
+      deepLinkLookupInFlightRef.current = false;
+      return;
+    }
+
+    if (deepLinkHandledRef.current) {
+      return;
+    }
+
+    const protocoloNormalizado = normalizeProtocolValue(protocoloParaAbrir);
+    const existingCard = findCardByProtocol(columns, protocoloNormalizado);
+
+    if (existingCard) {
+      deepLinkHandledRef.current = true;
+      void openDetailsModal(existingCard);
+      router.replace("/orquestracao", { scroll: false });
+      return;
+    }
+
+    if (deepLinkLookupInFlightRef.current) {
+      return;
+    }
+
+    deepLinkLookupInFlightRef.current = true;
+    setDetailsModal({ open: true, card: null, detail: null, loading: true });
+    setDetailsAlertas({ isLoading: false, alertas: [] });
+    setDetailsHistorico({ isLoading: true, vistorias: [] });
+
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/sinistros?tipo=kanban&protocolo=${encodeURIComponent(protocoloParaAbrir)}`,
+        );
+
+        if (!res.ok) {
+          throw new Error("Falha ao localizar sinistro pelo protocolo.");
+        }
+
+        const body = (await res.json()) as KanbanResponse;
+        const lookupColumns = mapKanbanResponse(body);
+        const deepLinkedCard = findCardByProtocol(
+          lookupColumns,
+          protocoloNormalizado,
+        );
+
+        if (!deepLinkedCard) {
+          throw new Error(
+            "Sinistro não encontrado para o protocolo informado.",
+          );
+        }
+
+        deepLinkHandledRef.current = true;
+        await openDetailsModal(deepLinkedCard);
+        router.replace("/orquestracao", { scroll: false });
+      } catch (err) {
+        closeDetailsModal();
+        deepLinkHandledRef.current = true;
+        router.replace("/orquestracao", { scroll: false });
+        toast({
+          title: "Não foi possível abrir o sinistro",
+          description:
+            err instanceof Error
+              ? err.message
+              : "Erro inesperado no deep link.",
+          variant: "destructive",
+        });
+      } finally {
+        deepLinkLookupInFlightRef.current = false;
+      }
+    })();
+  }, [
+    closeDetailsModal,
+    columns,
+    openDetailsModal,
+    protocoloParaAbrir,
+    router,
+  ]);
 
   const openLinkModal = (card: KanbanCard) => {
     setLinkModal({
@@ -1486,20 +1567,20 @@ export function KanbanBoard() {
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="max-w-4xl overflow-hidden">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-2xl font-bold text-slate-800">
-              <FilePlus className="h-6 w-6 text-blue-700" />
+            <DialogTitle className="flex items-center gap-2 text-2xl font-bold text-foreground">
+              <FilePlus className="h-6 w-6 text-blue-700 dark:text-blue-400" />
               Novo Sinistro
             </DialogTitle>
-            <DialogDescription className="text-sm text-slate-500">
+            <DialogDescription className="text-sm text-muted-foreground">
               Selecione as bases e preencha os campos operacionais.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-5">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/60">
               <div className="grid gap-5">
                 <div className="grid gap-1.5">
-                  <Label className="mb-1.5 text-xs font-bold uppercase tracking-wider text-slate-600">
+                  <Label className="mb-1.5 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
                     Cliente
                   </Label>
                   <Popover
@@ -1511,10 +1592,10 @@ export function KanbanBoard() {
                         variant="outline"
                         role="combobox"
                         aria-expanded={createClienteOpen}
-                        className="h-11 w-full justify-between rounded-xl border-slate-200 bg-slate-50 text-slate-700 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                        className="h-11 w-full justify-between rounded-xl border-slate-200 bg-slate-50 text-slate-700 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-200 dark:focus-visible:bg-slate-900 dark:focus-visible:ring-blue-400/30"
                       >
                         <span className="flex min-w-0 items-center gap-2 text-left">
-                          <User className="h-4 w-4 shrink-0 text-slate-500" />
+                          <User className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
                           <span className="truncate">
                             {selectedClienteLabel ?? "Selecione o cliente"}
                           </span>
@@ -1523,7 +1604,7 @@ export function KanbanBoard() {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
-                      className="w-(--radix-popover-trigger-width) rounded-xl border-slate-200 p-0"
+                      className="w-(--radix-popover-trigger-width) rounded-xl border-slate-200 p-0 dark:border-slate-700"
                       align="start"
                     >
                       <Command>
@@ -1566,7 +1647,7 @@ export function KanbanBoard() {
                 </div>
 
                 <div className="grid gap-1.5">
-                  <Label className="mb-1.5 text-xs font-bold uppercase tracking-wider text-slate-600">
+                  <Label className="mb-1.5 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
                     Veículo
                   </Label>
                   <Popover
@@ -1581,10 +1662,10 @@ export function KanbanBoard() {
                         role="combobox"
                         aria-expanded={createVeiculoOpen}
                         disabled={!createForm.clienteId}
-                        className="h-11 w-full justify-between rounded-xl border-slate-200 bg-slate-50 text-slate-700 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-blue-500/20 disabled:opacity-70"
+                        className="h-11 w-full justify-between rounded-xl border-slate-200 bg-slate-50 text-slate-700 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-blue-500/20 disabled:opacity-70 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-200 dark:focus-visible:bg-slate-900 dark:focus-visible:ring-blue-400/30"
                       >
                         <span className="flex min-w-0 items-center gap-2 text-left">
-                          <Car className="h-4 w-4 shrink-0 text-slate-500" />
+                          <Car className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
                           <span className="truncate">
                             {!createForm.clienteId
                               ? "Selecione um cliente primeiro..."
@@ -1595,7 +1676,7 @@ export function KanbanBoard() {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
-                      className="w-(--radix-popover-trigger-width) rounded-xl border-slate-200 p-0"
+                      className="w-(--radix-popover-trigger-width) rounded-xl border-slate-200 p-0 dark:border-slate-700"
                       align="start"
                     >
                       <Command>
@@ -1638,7 +1719,7 @@ export function KanbanBoard() {
                 </div>
 
                 <div className="grid gap-1.5">
-                  <Label className="mb-1.5 text-xs font-bold uppercase tracking-wider text-slate-600">
+                  <Label className="mb-1.5 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
                     Seguradora
                   </Label>
                   <Popover
@@ -1650,10 +1731,10 @@ export function KanbanBoard() {
                         variant="outline"
                         role="combobox"
                         aria-expanded={createSeguradoraOpen}
-                        className="h-11 w-full justify-between rounded-xl border-slate-200 bg-slate-50 text-slate-700 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                        className="h-11 w-full justify-between rounded-xl border-slate-200 bg-slate-50 text-slate-700 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-200 dark:focus-visible:bg-slate-900 dark:focus-visible:ring-blue-400/30"
                       >
                         <span className="flex min-w-0 items-center gap-2 text-left">
-                          <Shield className="h-4 w-4 shrink-0 text-slate-500" />
+                          <Shield className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
                           <span className="truncate">
                             {selectedSeguradoraLabel ??
                               "Selecione a seguradora"}
@@ -1663,7 +1744,7 @@ export function KanbanBoard() {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
-                      className="w-(--radix-popover-trigger-width) rounded-xl border-slate-200 p-0"
+                      className="w-(--radix-popover-trigger-width) rounded-xl border-slate-200 p-0 dark:border-slate-700"
                       align="start"
                     >
                       <Command>
@@ -1711,17 +1792,17 @@ export function KanbanBoard() {
               <div className="grid gap-1.5">
                 <Label
                   htmlFor="claimType"
-                  className="mb-1.5 text-xs font-bold uppercase tracking-wider text-slate-600"
+                  className="mb-1.5 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300"
                 >
                   Tipo de Sinistro
                 </Label>
                 <div className="relative w-full">
-                  <AlertCircle className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                  <AlertCircle className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 dark:text-slate-400" />
                   <Input
                     id="claimType"
                     value={createForm.claimType}
                     placeholder="Ex: Colisão frontal severa"
-                    className="h-11 rounded-xl border-slate-200 bg-slate-50 pl-10 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                    className="h-11 rounded-xl border-slate-200 bg-slate-50 pl-10 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus-visible:bg-slate-900 dark:focus-visible:ring-blue-400/30"
                     onChange={(event) =>
                       setCreateForm((cur) => ({
                         ...cur,
@@ -1730,24 +1811,24 @@ export function KanbanBoard() {
                     }
                   />
                 </div>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Exemplo: Danos em porta e retrovisor.
                 </p>
               </div>
 
               <div className="grid gap-1.5">
-                <Label className="mb-1.5 text-xs font-bold uppercase tracking-wider text-slate-600">
+                <Label className="mb-1.5 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
                   Prioridade
                 </Label>
                 <div className="relative">
-                  <BarChart3 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                  <BarChart3 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 dark:text-slate-400" />
                   <Select
                     value={createForm.priority}
                     onValueChange={(value) =>
                       setCreateForm((cur) => ({ ...cur, priority: value }))
                     }
                   >
-                    <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-slate-50 pl-10 focus:bg-white focus:ring-2 focus:ring-blue-500/20">
+                    <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-slate-50 pl-10 focus:bg-white focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-100 dark:focus:bg-slate-900 dark:focus:ring-blue-400/30">
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1764,17 +1845,17 @@ export function KanbanBoard() {
               <div className="grid gap-1.5">
                 <Label
                   htmlFor="damageDescription"
-                  className="mb-1.5 text-xs font-bold uppercase tracking-wider text-slate-600"
+                  className="mb-1.5 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300"
                 >
                   Descrição do Dano
                 </Label>
                 <div className="relative w-full">
-                  <AlignLeft className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                  <AlignLeft className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-500 dark:text-slate-400" />
                   <Textarea
                     id="damageDescription"
                     value={createForm.damageDescription}
                     placeholder="Detalhe os danos visíveis, peças afetadas e informações iniciais. Ex: Para-choque com riscos profundos, lanterna direita quebrada e capô amassado."
-                    className="field-sizing-fixed min-h-28 w-full max-w-full resize-none overflow-x-hidden rounded-xl border-slate-200 bg-slate-50 pl-10 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                    className="field-sizing-fixed min-h-28 w-full max-w-full resize-none overflow-x-hidden rounded-xl border-slate-200 bg-slate-50 pl-10 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus-visible:bg-slate-900 dark:focus-visible:ring-blue-400/30"
                     onChange={(event) =>
                       setCreateForm((cur) => ({
                         ...cur,
@@ -1783,7 +1864,7 @@ export function KanbanBoard() {
                     }
                   />
                 </div>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Exemplo: Danos em porta e retrovisor com necessidade de
                   análise de pintura, funilaria e fixação.
                 </p>
@@ -1794,7 +1875,7 @@ export function KanbanBoard() {
           <DialogFooter className="mt-2 flex w-full justify-end gap-3">
             <Button
               variant="outline"
-              className="rounded-xl text-slate-500 hover:bg-slate-100"
+              className="rounded-xl text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800/70"
               onClick={() => setIsCreateOpen(false)}
             >
               Cancelar
@@ -1915,71 +1996,79 @@ export function KanbanBoard() {
               Carregando detalhes...
             </p>
           ) : (
-            <ScrollArea className="h-[65vh] rounded-xl bg-slate-50 p-4">
+            <ScrollArea className="h-[65vh] rounded-xl bg-muted/40 p-4 dark:bg-muted/15">
               <div className="text-sm">
-                <div className="mb-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-                  <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-blue-700">
+                <div className="mb-4 rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+                  <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-primary">
                     <Car className="h-5 w-5" />
                     Dados do veículo
                   </h3>
-                  <div className="flex items-start justify-between border-b border-gray-50 py-2 last:border-0">
-                    <span className="text-sm text-gray-500">Placa</span>
-                    <span className="text-right text-sm font-medium text-gray-900">
+                  <div className="flex items-start justify-between border-b border-border/50 py-2 last:border-0">
+                    <span className="text-sm text-muted-foreground">Placa</span>
+                    <span className="text-right text-sm font-medium text-foreground">
                       {String(
                         detailsModal.detail?.veiculoSnapshot?.placa ?? "-",
                       )}
                     </span>
                   </div>
-                  <div className="flex items-start justify-between border-b border-gray-50 py-2 last:border-0">
-                    <span className="text-sm text-gray-500">Marca</span>
-                    <span className="text-right text-sm font-medium text-gray-900">
+                  <div className="flex items-start justify-between border-b border-border/50 py-2 last:border-0">
+                    <span className="text-sm text-muted-foreground">Marca</span>
+                    <span className="text-right text-sm font-medium text-foreground">
                       {String(
                         detailsModal.detail?.veiculoSnapshot?.marca ?? "-",
                       )}
                     </span>
                   </div>
-                  <div className="flex items-start justify-between border-b border-gray-50 py-2 last:border-0">
-                    <span className="text-sm text-gray-500">Modelo</span>
-                    <span className="text-right text-sm font-medium text-gray-900">
+                  <div className="flex items-start justify-between border-b border-border/50 py-2 last:border-0">
+                    <span className="text-sm text-muted-foreground">
+                      Modelo
+                    </span>
+                    <span className="text-right text-sm font-medium text-foreground">
                       {String(
                         detailsModal.detail?.veiculoSnapshot?.modelo ?? "-",
                       )}
                     </span>
                   </div>
-                  <div className="flex items-start justify-between border-b border-gray-50 py-2 last:border-0">
-                    <span className="text-sm text-gray-500">Ano</span>
-                    <span className="text-right text-sm font-medium text-gray-900">
+                  <div className="flex items-start justify-between border-b border-border/50 py-2 last:border-0">
+                    <span className="text-sm text-muted-foreground">Ano</span>
+                    <span className="text-right text-sm font-medium text-foreground">
                       {String(
                         detailsModal.detail?.veiculoSnapshot?.anoFabricacao ??
                           "-",
                       )}
                     </span>
                   </div>
-                  <div className="flex items-start justify-between border-b border-gray-50 py-2 last:border-0">
-                    <span className="text-sm text-gray-500">Cor</span>
-                    <span className="text-right text-sm font-medium text-gray-900">
+                  <div className="flex items-start justify-between border-b border-border/50 py-2 last:border-0">
+                    <span className="text-sm text-muted-foreground">Cor</span>
+                    <span className="text-right text-sm font-medium text-foreground">
                       {String(detailsModal.detail?.veiculoSnapshot?.cor ?? "-")}
                     </span>
                   </div>
-                  <div className="flex items-start justify-between border-b border-gray-50 py-2 last:border-0">
-                    <span className="text-sm text-gray-500">Chassi</span>
-                    <span className="text-right text-sm font-medium text-gray-900">
+                  <div className="flex items-start justify-between border-b border-border/50 py-2 last:border-0">
+                    <span className="text-sm text-muted-foreground">
+                      Chassi
+                    </span>
+                    <span className="text-right text-sm font-medium text-foreground">
                       {String(
                         detailsModal.detail?.veiculoSnapshot?.chassi ?? "-",
                       )}
                     </span>
                   </div>
-                  <div className="flex items-start justify-between border-b border-gray-50 py-2 last:border-0">
-                    <span className="text-sm text-gray-500">Renavam</span>
-                    <span className="text-right text-sm font-medium text-gray-900">
+                  <div className="flex items-start justify-between border-b border-border/50 py-2 last:border-0">
+                    <span className="text-sm text-muted-foreground">
+                      Renavam
+                    </span>
+                    <span className="text-right text-sm font-medium text-foreground">
                       {String(
                         detailsModal.detail?.veiculoSnapshot?.renavam ?? "-",
                       )}
                     </span>
                   </div>
                   <div className="flex items-start justify-between py-2">
-                    <span className="text-sm text-gray-500">Combustível</span>
-                    <span className="text-right text-sm font-medium text-gray-900">
+                    <span className="text-sm text-muted-foreground">
+                      Combustível
+                    </span>
+                    <span className="text-right text-sm font-medium text-foreground">
                       {String(
                         detailsModal.detail?.veiculoSnapshot?.combustivel ??
                           "-",
@@ -1988,20 +2077,24 @@ export function KanbanBoard() {
                   </div>
                 </div>
 
-                <div className="mb-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-                  <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-blue-700">
+                <div className="mb-4 rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+                  <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-primary">
                     <FileText className="h-5 w-5" />
                     Dados do sinistro
                   </h3>
-                  <div className="flex items-start justify-between border-b border-gray-50 py-2 last:border-0">
-                    <span className="text-sm text-gray-500">Protocolo</span>
-                    <span className="text-right text-sm font-medium text-gray-900">
+                  <div className="flex items-start justify-between border-b border-border/50 py-2 last:border-0">
+                    <span className="text-sm text-muted-foreground">
+                      Protocolo
+                    </span>
+                    <span className="text-right text-sm font-medium text-foreground">
                       {detailsModal.detail?.protocol ?? "-"}
                     </span>
                   </div>
-                  <div className="flex items-start justify-between border-b border-gray-50 py-2 last:border-0">
-                    <span className="text-sm text-gray-500">Seguradora</span>
-                    <span className="text-right text-sm font-medium text-gray-900">
+                  <div className="flex items-start justify-between border-b border-border/50 py-2 last:border-0">
+                    <span className="text-sm text-muted-foreground">
+                      Seguradora
+                    </span>
+                    <span className="text-right text-sm font-medium text-foreground">
                       {String(
                         detailsModal.detail?.seguradoraSnapshot?.name ??
                           detailsModal.detail?.seguradorasSnapshot?.name ??
@@ -2009,14 +2102,16 @@ export function KanbanBoard() {
                       )}
                     </span>
                   </div>
-                  <div className="flex items-start justify-between border-b border-gray-50 py-2 last:border-0">
-                    <span className="text-sm text-gray-500">Tipo</span>
-                    <span className="text-right text-sm font-medium text-gray-900">
+                  <div className="flex items-start justify-between border-b border-border/50 py-2 last:border-0">
+                    <span className="text-sm text-muted-foreground">Tipo</span>
+                    <span className="text-right text-sm font-medium text-foreground">
                       {detailsModal.detail?.claimType ?? "-"}
                     </span>
                   </div>
-                  <div className="flex items-start justify-between border-b border-gray-50 py-2 last:border-0">
-                    <span className="text-sm text-gray-500">Prioridade</span>
+                  <div className="flex items-start justify-between border-b border-border/50 py-2 last:border-0">
+                    <span className="text-sm text-muted-foreground">
+                      Prioridade
+                    </span>
                     <Badge
                       variant="secondary"
                       className={cn(
@@ -2027,21 +2122,27 @@ export function KanbanBoard() {
                       {formatPriority(detailsModal.detail?.priority)}
                     </Badge>
                   </div>
-                  <div className="flex items-start justify-between border-b border-gray-50 py-2 last:border-0">
-                    <span className="text-sm text-gray-500">Status</span>
-                    <span className="text-right text-sm font-medium text-gray-900">
+                  <div className="flex items-start justify-between border-b border-border/50 py-2 last:border-0">
+                    <span className="text-sm text-muted-foreground">
+                      Status
+                    </span>
+                    <span className="text-right text-sm font-medium text-foreground">
                       {formatStatus(detailsModal.detail?.status ?? "-")}
                     </span>
                   </div>
-                  <div className="flex items-start justify-between border-b border-gray-50 py-2 last:border-0">
-                    <span className="text-sm text-gray-500">Agendamento</span>
-                    <span className="text-right text-sm font-medium text-gray-900">
+                  <div className="flex items-start justify-between border-b border-border/50 py-2 last:border-0">
+                    <span className="text-sm text-muted-foreground">
+                      Agendamento
+                    </span>
+                    <span className="text-right text-sm font-medium text-foreground">
                       {formatDate(detailsModal.detail?.scheduledDate)}
                     </span>
                   </div>
                   <div className="flex items-start justify-between py-2">
-                    <span className="text-sm text-gray-500">Check-in</span>
-                    <span className="text-right text-sm font-medium text-gray-900">
+                    <span className="text-sm text-muted-foreground">
+                      Check-in
+                    </span>
+                    <span className="text-right text-sm font-medium text-foreground">
                       {detailsModal.detail?.checkInAt
                         ? formatDate(detailsModal.detail?.checkInAt)
                         : "Aguardando"}
@@ -2049,14 +2150,14 @@ export function KanbanBoard() {
                   </div>
                 </div>
 
-                <div className="mb-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-                  <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-blue-700">
+                <div className="mb-4 rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+                  <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-primary">
                     <User className="h-5 w-5" />
                     Cliente
                   </h3>
-                  <div className="flex items-start justify-between border-b border-gray-50 py-2 last:border-0">
-                    <span className="text-sm text-gray-500">Nome</span>
-                    <span className="text-right text-sm font-medium text-gray-900">
+                  <div className="flex items-start justify-between border-b border-border/50 py-2 last:border-0">
+                    <span className="text-sm text-muted-foreground">Nome</span>
+                    <span className="text-right text-sm font-medium text-foreground">
                       {String(
                         detailsModal.detail?.clienteSnapshot?.nomeCompleto ??
                           detailsModal.detail?.clienteSnapshot?.nome ??
@@ -2069,9 +2170,11 @@ export function KanbanBoard() {
                       )}
                     </span>
                   </div>
-                  <div className="flex items-start justify-between border-b border-gray-50 py-2 last:border-0">
-                    <span className="text-sm text-gray-500">Documento</span>
-                    <span className="text-right text-sm font-medium text-gray-900">
+                  <div className="flex items-start justify-between border-b border-border/50 py-2 last:border-0">
+                    <span className="text-sm text-muted-foreground">
+                      Documento
+                    </span>
+                    <span className="text-right text-sm font-medium text-foreground">
                       {String(
                         detailsModal.detail?.clienteSnapshot?.cpfCnpj ??
                           detailsModal.detail?.clienteSnapshot?.cpf ??
@@ -2087,9 +2190,11 @@ export function KanbanBoard() {
                       )}
                     </span>
                   </div>
-                  <div className="flex items-start justify-between border-b border-gray-50 py-2 last:border-0">
-                    <span className="text-sm text-gray-500">Telefone</span>
-                    <span className="text-right text-sm font-medium text-gray-900">
+                  <div className="flex items-start justify-between border-b border-border/50 py-2 last:border-0">
+                    <span className="text-sm text-muted-foreground">
+                      Telefone
+                    </span>
+                    <span className="text-right text-sm font-medium text-foreground">
                       {String(
                         detailsModal.detail?.clienteSnapshot?.telefone ??
                           detailsModal.detail?.clienteSnapshot?.phone ??
@@ -2103,8 +2208,10 @@ export function KanbanBoard() {
                     </span>
                   </div>
                   <div className="flex items-start justify-between py-2">
-                    <span className="text-sm text-gray-500">E-mail</span>
-                    <span className="text-right text-sm font-medium text-gray-900">
+                    <span className="text-sm text-muted-foreground">
+                      E-mail
+                    </span>
+                    <span className="text-right text-sm font-medium text-foreground">
                       {String(
                         detailsModal.detail?.clienteSnapshot?.email ??
                           detailsModal.detail?.clienteSnapshot?.mail ??
@@ -2118,23 +2225,27 @@ export function KanbanBoard() {
 
                 {detailsModal.detail?.credenciadoId &&
                   detailsModal.detail?.credenciadoSnapshot && (
-                    <div className="mb-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-                      <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-blue-700">
+                    <div className="mb-4 rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+                      <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-primary">
                         <Wrench className="h-5 w-5" />
                         Oficina credenciada
                       </h3>
-                      <div className="flex items-start justify-between border-b border-gray-50 py-2 last:border-0">
-                        <span className="text-sm text-gray-500">Oficina</span>
-                        <span className="text-right text-sm font-medium text-gray-900">
+                      <div className="flex items-start justify-between border-b border-border/50 py-2 last:border-0">
+                        <span className="text-sm text-muted-foreground">
+                          Oficina
+                        </span>
+                        <span className="text-right text-sm font-medium text-foreground">
                           {String(
                             detailsModal.detail?.credenciadoSnapshot?.name ??
                               "-",
                           )}
                         </span>
                       </div>
-                      <div className="flex items-start justify-between border-b border-gray-50 py-2 last:border-0">
-                        <span className="text-sm text-gray-500">Endereço</span>
-                        <span className="text-right text-sm font-medium text-gray-900">
+                      <div className="flex items-start justify-between border-b border-border/50 py-2 last:border-0">
+                        <span className="text-sm text-muted-foreground">
+                          Endereço
+                        </span>
+                        <span className="text-right text-sm font-medium text-foreground">
                           {[
                             String(
                               detailsModal.detail?.credenciadoSnapshot
@@ -2152,9 +2263,11 @@ export function KanbanBoard() {
                               : "") || "-"}
                         </span>
                       </div>
-                      <div className="flex items-start justify-between border-b border-gray-50 py-2 last:border-0">
-                        <span className="text-sm text-gray-500">Telefone</span>
-                        <span className="text-right text-sm font-medium text-gray-900">
+                      <div className="flex items-start justify-between border-b border-border/50 py-2 last:border-0">
+                        <span className="text-sm text-muted-foreground">
+                          Telefone
+                        </span>
+                        <span className="text-right text-sm font-medium text-foreground">
                           {String(
                             detailsModal.detail?.credenciadoSnapshot?.phone ??
                               "-",
@@ -2162,8 +2275,10 @@ export function KanbanBoard() {
                         </span>
                       </div>
                       <div className="flex items-start justify-between py-2">
-                        <span className="text-sm text-gray-500">E-mail</span>
-                        <span className="text-right text-sm font-medium text-gray-900">
+                        <span className="text-sm text-muted-foreground">
+                          E-mail
+                        </span>
+                        <span className="text-right text-sm font-medium text-foreground">
                           {String(
                             detailsModal.detail?.credenciadoSnapshot?.email ??
                               "-",
@@ -2173,20 +2288,20 @@ export function KanbanBoard() {
                     </div>
                   )}
 
-                <div className="mb-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-                  <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-blue-700">
+                <div className="mb-4 rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+                  <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-primary">
                     <AlertTriangle className="h-5 w-5" />
                     Descrição inicial do dano
                   </h3>
-                  <p className="text-sm leading-relaxed text-gray-700">
+                  <p className="text-sm leading-relaxed text-foreground/90">
                     {detailsModal.detail?.damageDescription || "Não informado"}
                   </p>
                 </div>
 
                 {(detailsHistorico.isLoading ||
                   detailsHistorico.vistorias.length > 0) && (
-                  <div className="mb-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-                    <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-blue-700">
+                  <div className="mb-4 rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+                    <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-primary">
                       <FileText className="h-5 w-5" />
                       Histórico de Vistorias
                     </h3>
@@ -2195,12 +2310,12 @@ export function KanbanBoard() {
                         Carregando histórico...
                       </p>
                     ) : (
-                      <div className="relative space-y-0 pl-4 before:absolute before:left-1.75 before:top-2 before:h-[calc(100%-16px)] before:w-0.5 before:bg-gray-200">
+                      <div className="relative space-y-0 pl-4 before:absolute before:left-1.75 before:top-2 before:h-[calc(100%-16px)] before:w-0.5 before:bg-border">
                         {detailsHistorico.vistorias.map((v, idx) => (
                           <div key={v.id} className="relative pb-4 last:pb-0">
                             <span
                               className={cn(
-                                "absolute -left-4 top-1.5 h-3.5 w-3.5 rounded-full border-2 border-white",
+                                "absolute -left-4 top-1.5 h-3.5 w-3.5 rounded-full border-2 border-background",
                                 v.status.toUpperCase().includes("REJEIT")
                                   ? "bg-red-400"
                                   : v.status.toUpperCase().includes("FINALIZ")
@@ -2208,9 +2323,9 @@ export function KanbanBoard() {
                                     : "bg-amber-400",
                               )}
                             />
-                            <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                            <div className="rounded-lg border border-border/60 bg-muted/40 px-3 py-2 dark:bg-muted/20">
                               <div className="flex flex-wrap items-center justify-between gap-2">
-                                <span className="text-xs font-medium text-gray-700">
+                                <span className="text-xs font-medium text-foreground/90">
                                   Vistoria{" "}
                                   {detailsHistorico.vistorias.length - idx}
                                 </span>
@@ -2228,11 +2343,11 @@ export function KanbanBoard() {
                                 {formatDate(v.createdAt)}
                               </p>
                               {v.motivoRejeicao && (
-                                <div className="mt-2 rounded border border-red-200 bg-red-50 px-2 py-1.5">
-                                  <p className="text-xs font-medium text-red-700">
+                                <div className="mt-2 rounded border border-red-200 bg-red-50 px-2 py-1.5 dark:border-red-900/50 dark:bg-red-950/25">
+                                  <p className="text-xs font-medium text-red-700 dark:text-red-300">
                                     Motivo da rejeição:
                                   </p>
-                                  <p className="mt-0.5 text-xs text-red-600">
+                                  <p className="mt-0.5 text-xs text-red-600 dark:text-red-200/90">
                                     {v.motivoRejeicao}
                                   </p>
                                 </div>
@@ -2246,8 +2361,8 @@ export function KanbanBoard() {
                 )}
 
                 {detailsModal.card?.kanbanColumn === "analiseOperacional" && (
-                  <div className="mb-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-                    <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-blue-700">
+                  <div className="mb-4 rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+                    <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-primary">
                       <AlertTriangle className="h-5 w-5" />
                       Alertas da IA
                     </h3>
@@ -2257,7 +2372,7 @@ export function KanbanBoard() {
                         Carregando alertas...
                       </p>
                     ) : detailsAlertas.alertas.length === 0 ? (
-                      <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                      <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/25 dark:text-emerald-300">
                         Nenhuma inconformidade encontrada.
                       </div>
                     ) : (
@@ -2271,15 +2386,15 @@ export function KanbanBoard() {
                               ? "border-l-amber-500"
                               : "border-l-blue-400";
                           const bgColor = isCritical
-                            ? "bg-red-50"
+                            ? "bg-red-50 dark:bg-red-950/25"
                             : isWarning
-                              ? "bg-amber-50"
-                              : "bg-blue-50/50";
+                              ? "bg-amber-50 dark:bg-amber-950/25"
+                              : "bg-blue-50/50 dark:bg-blue-950/20";
                           const badgeClass = isCritical
-                            ? "border-red-200 bg-red-100 text-red-700"
+                            ? "border-red-200 bg-red-100 text-red-700 dark:border-red-900/50 dark:bg-red-900/35 dark:text-red-300"
                             : isWarning
-                              ? "border-amber-200 bg-amber-100 text-amber-700"
-                              : "border-blue-200 bg-blue-100 text-blue-700";
+                              ? "border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/50 dark:bg-amber-900/35 dark:text-amber-300"
+                              : "border-blue-200 bg-blue-100 text-blue-700 dark:border-blue-900/50 dark:bg-blue-900/35 dark:text-blue-300";
                           const badgeLabel = isCritical
                             ? "Crítico"
                             : isWarning
@@ -2557,8 +2672,8 @@ export function KanbanBoard() {
           <ScrollArea className="max-h-[60vh]">
             <div className="space-y-5 p-1">
               {/* Bloco 1 — Resumo do sinistro */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                   Sinistro
                 </p>
                 <p className="mt-1 text-base font-bold text-foreground">
@@ -2597,9 +2712,9 @@ export function KanbanBoard() {
                     Carregando relatório...
                   </p>
                 ) : approvalModal.alertas.length === 0 ? (
-                  <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                    <p className="text-sm text-emerald-700">
+                  <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-900/50 dark:bg-emerald-950/25">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    <p className="text-sm text-emerald-700 dark:text-emerald-300">
                       Nenhuma inconformidade encontrada.
                     </p>
                   </div>
@@ -2614,15 +2729,15 @@ export function KanbanBoard() {
                           ? "border-l-amber-500"
                           : "border-l-blue-400";
                       const bgColor = isCritical
-                        ? "bg-red-50"
+                        ? "bg-red-50 dark:bg-red-950/25"
                         : isWarning
-                          ? "bg-amber-50"
-                          : "bg-blue-50/50";
+                          ? "bg-amber-50 dark:bg-amber-950/25"
+                          : "bg-blue-50/50 dark:bg-blue-950/20";
                       const badgeClass = isCritical
-                        ? "border-red-200 bg-red-100 text-red-700"
+                        ? "border-red-200 bg-red-100 text-red-700 dark:border-red-900/50 dark:bg-red-900/35 dark:text-red-300"
                         : isWarning
-                          ? "border-amber-200 bg-amber-100 text-amber-700"
-                          : "border-blue-200 bg-blue-100 text-blue-700";
+                          ? "border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/50 dark:bg-amber-900/35 dark:text-amber-300"
+                          : "border-blue-200 bg-blue-100 text-blue-700 dark:border-blue-900/50 dark:bg-blue-900/35 dark:text-blue-300";
                       const badgeLabel = isCritical
                         ? "Crítico"
                         : isWarning
@@ -2674,7 +2789,7 @@ export function KanbanBoard() {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-auto gap-1.5 px-0 text-sm font-normal text-slate-500 underline-offset-4 hover:bg-transparent hover:text-slate-700 hover:underline"
+                    className="h-auto gap-1.5 px-0 text-sm font-normal text-slate-500 underline-offset-4 hover:bg-transparent hover:text-slate-700 hover:underline dark:text-slate-400 dark:hover:text-slate-200"
                     onClick={handleOpenFullVistoria}
                     disabled={
                       !approvalModal.card?.id ||
@@ -2690,13 +2805,13 @@ export function KanbanBoard() {
 
               {/* Bloco de rejeição — visível apenas quando isRejecting */}
               {isRejecting && (
-                <div className="grid gap-2 rounded-xl border border-red-200 bg-red-50 p-4">
+                <div className="grid gap-2 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/25">
                   <Label
                     htmlFor="reject-reason"
-                    className="text-sm font-semibold text-red-800"
+                    className="text-sm font-semibold text-red-800 dark:text-red-300"
                   >
                     Motivo da Rejeição{" "}
-                    <span className="font-normal text-red-600">
+                    <span className="font-normal text-red-600 dark:text-red-400">
                       (obrigatório — será enviado à oficina)
                     </span>
                   </Label>
@@ -2705,7 +2820,7 @@ export function KanbanBoard() {
                     value={rejectReason}
                     onChange={(event) => setRejectReason(event.target.value)}
                     placeholder="Descreva claramente o motivo da reprovação para retorno à oficina..."
-                    className="min-h-24 border-red-300 bg-white focus-visible:ring-red-400"
+                    className="min-h-24 border-red-300 bg-white focus-visible:ring-red-400 dark:border-red-900/50 dark:bg-slate-950/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus-visible:ring-red-500"
                     disabled={isRejectSubmitting}
                   />
                 </div>

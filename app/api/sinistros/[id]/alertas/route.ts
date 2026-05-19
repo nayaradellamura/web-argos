@@ -30,6 +30,42 @@ function tipoToType(tipo: unknown): "critical" | "warning" | "info" {
   return "info";
 }
 
+async function findSinistroDocRefById(rawId: string) {
+  const adminDb = getAdminDb();
+  const sinistroCollection = adminDb.collection("sinistro");
+  const id = decodeURIComponent(rawId).trim();
+
+  if (!id) {
+    return null;
+  }
+
+  const directDocRef = sinistroCollection.doc(id);
+  const directDocSnap = await directDocRef.get();
+
+  if (directDocSnap.exists) {
+    return directDocRef;
+  }
+
+  const byIdSnapshot = await sinistroCollection
+    .where("id", "==", id)
+    .limit(1)
+    .get();
+  if (!byIdSnapshot.empty) {
+    return byIdSnapshot.docs[0].ref;
+  }
+
+  const byProtocolSnapshot = await sinistroCollection
+    .where("protocol", "==", id)
+    .limit(1)
+    .get();
+
+  if (!byProtocolSnapshot.empty) {
+    return byProtocolSnapshot.docs[0].ref;
+  }
+
+  return null;
+}
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -37,12 +73,20 @@ export async function GET(
   try {
     const { id } = await params;
     const db = getAdminDb();
+    const ref = await findSinistroDocRefById(id);
+
+    if (!ref) {
+      return NextResponse.json(
+        { error: "Sinistro não encontrado." },
+        { status: 404 },
+      );
+    }
 
     // Sem orderBy para evitar necessidade de índice composto.
     // Ordenação feita em memória.
     const alertasSnap = await db
       .collection("alertas")
-      .where("sinistroId", "==", id)
+      .where("sinistroId", "==", ref.id)
       .get();
 
     const alertas = alertasSnap.docs
@@ -50,7 +94,7 @@ export async function GET(
         const data = doc.data();
         return {
           id: doc.id,
-          sinistroId: (data.sinistroId as string | undefined) ?? id,
+          sinistroId: (data.sinistroId as string | undefined) ?? ref.id,
           type: tipoToType(data.tipo),
           title: (data.titulo as string | undefined) ?? "",
           description: (data.descricao as string | undefined) ?? "",
@@ -63,9 +107,14 @@ export async function GET(
       .sort((a, b) => b._ts - a._ts)
       .map(({ _ts: _, ...rest }) => rest);
 
-    return NextResponse.json({ sinistroId: id, alertas, total: alertas.length });
+    return NextResponse.json({
+      sinistroId: ref.id,
+      alertas,
+      total: alertas.length,
+    });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Erro desconhecido.";
+    const message =
+      error instanceof Error ? error.message : "Erro desconhecido.";
     return NextResponse.json(
       { error: "Falha ao buscar alertas.", details: message },
       { status: 500 },

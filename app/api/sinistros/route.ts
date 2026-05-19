@@ -82,6 +82,35 @@ async function getDocsByIds(
   return snaps.flatMap((s) => s.docs);
 }
 
+async function findSinistroDocByIdentifier(
+  col: CollectionReference<DocumentData>,
+  rawIdentifier: string,
+) {
+  const identifier = decodeURIComponent(rawIdentifier).trim();
+
+  if (!identifier) return null;
+
+  const directDocs = await getDocsByIds(col, [identifier]);
+  if (directDocs.length > 0) {
+    return directDocs[0];
+  }
+
+  const [byIdSnapshot, byProtocolSnapshot] = await Promise.all([
+    col.where("id", "==", identifier).limit(1).get(),
+    col.where("protocol", "==", identifier).limit(1).get(),
+  ]);
+
+  if (!byIdSnapshot.empty) {
+    return byIdSnapshot.docs[0];
+  }
+
+  if (!byProtocolSnapshot.empty) {
+    return byProtocolSnapshot.docs[0];
+  }
+
+  return null;
+}
+
 // ── Kanban ────────────────────────────────────────────────────────────────────
 
 type KanbanColumn =
@@ -152,7 +181,8 @@ function mapKanbanCard(
     // Snapshots completos para o frontend ler campos aninhados livremente
     clienteSnapshot: clienteSnap ?? null,
     veiculoSnapshot: veiculoSnap ?? null,
-    seguradorasSnapshot: (data.seguradorasSnapshot as Record<string, unknown> | undefined) ?? null,
+    seguradorasSnapshot:
+      (data.seguradorasSnapshot as Record<string, unknown> | undefined) ?? null,
     credenciadoSnapshot: credSnap ?? null,
     // Atalhos de leitura rápida para UI
     clienteNome: String(clienteSnap?.nomeCompleto ?? clienteSnap?.nome ?? ""),
@@ -174,6 +204,7 @@ export async function GET(request: Request) {
 
     const rawTipo = searchParams.get("tipo") ?? "geral";
     const tipo: TipoTabela = isValidTipo(rawTipo) ? rawTipo : "geral";
+    const protocolo = searchParams.get("protocolo")?.trim() ?? "";
     const page = Math.max(
       1,
       parseInt(searchParams.get("page") ?? "1", 10) || 1,
@@ -191,6 +222,63 @@ export async function GET(request: Request) {
 
     // ── KANBAN ────────────────────────────────────────────────────────────────
     if (tipo === "kanban") {
+      if (protocolo) {
+        const targetDoc = await findSinistroDocByIdentifier(
+          sinistros,
+          protocolo,
+        );
+
+        const columns: Record<
+          KanbanColumn,
+          ReturnType<typeof mapKanbanCard>[]
+        > = {
+          triagem: [],
+          aguardandoCheckin: [],
+          checkinRealizado: [],
+          emVistoria: [],
+          analiseOperacional: [],
+          finalizados: [],
+        };
+
+        if (!targetDoc) {
+          return NextResponse.json({ columns });
+        }
+
+        const vistoriasSnap = await vistorias
+          .where("sinistroId", "==", targetDoc.id)
+          .get();
+
+        let latestStatus: string | null = null;
+        let latestTs = 0;
+        let everRejected = false;
+
+        for (const v of vistoriasSnap.docs) {
+          const data = v.data();
+          const ts = toMs(data.createdAt);
+          if (ts > latestTs) {
+            latestTs = ts;
+            latestStatus = String(data.status ?? "");
+          }
+          if (data.status === "REJEITADA") {
+            everRejected = true;
+          }
+        }
+
+        const column = classifyKanbanColumn(targetDoc.data(), latestStatus);
+        const isRejected = latestStatus === "REJEITADA";
+        columns[column].push(
+          mapKanbanCard(
+            targetDoc,
+            latestStatus,
+            isRejected,
+            everRejected,
+            column,
+          ),
+        );
+
+        return NextResponse.json({ columns });
+      }
+
       const [allSinistrosSnap, allVistoriasSnap] = await Promise.all([
         sinistros.get(),
         vistorias.get(),
@@ -228,7 +316,9 @@ export async function GET(request: Request) {
         const col = classifyKanbanColumn(doc.data(), vStatus);
         const isRej = vStatus === "REJEITADA";
         const hasHistorico = everRejected.get(doc.id) ?? false;
-        columns[col].push(mapKanbanCard(doc, vStatus, isRej, hasHistorico, col));
+        columns[col].push(
+          mapKanbanCard(doc, vStatus, isRej, hasHistorico, col),
+        );
       }
 
       // Ordenar cada coluna por entryDate desc
@@ -390,7 +480,14 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as Record<string, unknown>;
-    const { clienteId, veiculoId, seguradoraId, claimType, priority, damageDescription } = body;
+    const {
+      clienteId,
+      veiculoId,
+      seguradoraId,
+      claimType,
+      priority,
+      damageDescription,
+    } = body;
 
     if (!clienteId || !veiculoId || !seguradoraId || !claimType || !priority) {
       return NextResponse.json(

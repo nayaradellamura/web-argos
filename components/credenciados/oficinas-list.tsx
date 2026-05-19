@@ -17,7 +17,6 @@ import {
   Building2,
   ChevronLeft,
   ChevronRight,
-  Trash2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -74,7 +73,7 @@ interface Sinistro {
   placa: string;
   vehicle: string;
   entryDate: string;
-  statusVistoria: string;
+  status: string;
 }
 
 interface EditFormState {
@@ -204,23 +203,27 @@ function formatSinistros(count: number): string {
   return `${count} sinistros`;
 }
 
-function getVistoriaStatusBadgeClass(status: string) {
+function getSinistroStatusBadgeClass(status: string) {
   const normalized = status.toLowerCase();
 
-  if (normalized.includes("agend")) {
-    return "bg-amber-500/10 text-amber-700 border-amber-500/40";
-  }
-
-  if (normalized.includes("check") || normalized.includes("realizado")) {
-    return "bg-sky-500/10 text-sky-700 border-sky-500/40";
-  }
-
-  if (normalized.includes("conclu") || normalized.includes("finaliz")) {
+  if (normalized.includes("finaliz") || normalized.includes("conclu")) {
     return "bg-emerald-500/10 text-emerald-700 border-emerald-500/40";
+  }
+
+  if (
+    normalized.includes("andamento") ||
+    normalized.includes("analise") ||
+    normalized.includes("análise")
+  ) {
+    return "bg-sky-500/10 text-sky-700 border-sky-500/40";
   }
 
   if (normalized.includes("pend")) {
     return "bg-orange-500/10 text-orange-700 border-orange-500/40";
+  }
+
+  if (normalized.includes("rejeit")) {
+    return "bg-red-500/10 text-red-700 border-red-500/40";
   }
 
   return "bg-muted text-muted-foreground border-border";
@@ -292,7 +295,6 @@ export function OficinasList({
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
   const [isSuspendDialogOpen, setIsSuspendDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedOficina, setSelectedOficina] = useState<Oficina | null>(null);
   const [sinistros, setSinistros] = useState<Sinistro[]>([]);
   const [isLoadingSinistros, setIsLoadingSinistros] = useState(false);
@@ -458,7 +460,7 @@ export function OficinasList({
           placa: String(item.placa ?? "-"),
           vehicle: String(item.veiculo ?? item.vehicle ?? "-"),
           entryDate: String(item.entryDate ?? ""),
-          statusVistoria: String(item.statusVistoria ?? item.status ?? "-"),
+          status: String(item.status || "-"),
         })),
       );
     } catch (error) {
@@ -494,11 +496,6 @@ export function OficinasList({
   const handleOpenSuspend = (oficina: Oficina) => {
     setSelectedOficina(oficina);
     setIsSuspendDialogOpen(true);
-  };
-
-  const handleOpenDelete = (oficina: Oficina) => {
-    setSelectedOficina(oficina);
-    setIsDeleteDialogOpen(true);
   };
 
   const handleSaveEdit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -582,24 +579,6 @@ export function OficinasList({
     }
   };
 
-  const handleConfirmDelete = async () => {
-    if (!selectedOficina) return;
-
-    try {
-      const response = await fetch(`/api/oficinas/${selectedOficina.id}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) throw new Error("Falha ao excluir oficina");
-
-      setOficinas((prev) => prev.filter((o) => o.id !== selectedOficina.id));
-
-      setIsDeleteDialogOpen(false);
-    } catch (error) {
-      console.error("Erro ao excluir oficina:", error);
-    }
-  };
-
   const filteredOficinas = useMemo(
     () =>
       oficinas.filter((oficina) => {
@@ -679,16 +658,14 @@ export function OficinasList({
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
+                          className={
+                            oficina.status === "Ativo"
+                              ? "text-destructive focus:text-destructive"
+                              : undefined
+                          }
                           onSelect={() => handleOpenSuspend(oficina)}
                         >
                           {oficina.status === "Ativo" ? "Suspender" : "Ativar"}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onSelect={() => handleOpenDelete(oficina)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Excluir
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -995,7 +972,7 @@ export function OficinasList({
                     <TableHead>Placa</TableHead>
                     <TableHead>Veículo</TableHead>
                     <TableHead>Data de Entrada</TableHead>
-                    <TableHead>Status Vistoria</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1014,11 +991,11 @@ export function OficinasList({
                       <TableCell>
                         <Badge
                           variant="outline"
-                          className={getVistoriaStatusBadgeClass(
-                            sinistro.statusVistoria,
+                          className={getSinistroStatusBadgeClass(
+                            sinistro.status,
                           )}
                         >
-                          {sinistro.statusVistoria}
+                          {sinistro.status}
                         </Badge>
                       </TableCell>
                     </TableRow>
@@ -1074,37 +1051,6 @@ export function OficinasList({
               onClick={handleConfirmSuspend}
             >
               Confirmar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal de Excluir */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Excluir Credenciado</DialogTitle>
-            <DialogDescription>
-              {selectedOficina
-                ? `Confirma a exclusão da oficina ${selectedOficina.name}? Esta ação não pode ser desfeita.`
-                : "Confirma a exclusão da oficina selecionada? Esta ação não pode ser desfeita."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsDeleteDialogOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={handleConfirmDelete}
-            >
-              Excluir
             </Button>
           </DialogFooter>
         </DialogContent>

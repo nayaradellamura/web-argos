@@ -8,7 +8,6 @@ import {
   Workflow,
   Database,
   Building2,
-  AlertTriangle,
   LogOut,
   X,
   ClipboardList,
@@ -48,11 +47,6 @@ const navigationItems = [
     name: "Oficinas Credenciadas",
     href: "/rede-credenciada",
     icon: Building2,
-  },
-  {
-    name: "Alertas",
-    href: "/alertas",
-    icon: AlertTriangle,
   },
 ];
 
@@ -97,7 +91,12 @@ export function Sidebar({
             isCollapsed ? "px-0" : "px-2",
           )}
         >
-          <div className="flex h-9 items-center justify-end">
+          <div
+            className={cn(
+              "flex h-9 items-center",
+              isCollapsed ? "justify-center" : "justify-end",
+            )}
+          >
             <Button
               variant="ghost"
               size="icon"
@@ -141,10 +140,10 @@ export function Sidebar({
 
               <div
                 className={cn(
-                  "ml-3 overflow-hidden transition-all duration-300 ease-in-out",
+                  "overflow-hidden transition-all duration-300 ease-in-out",
                   isCollapsed
                     ? "w-0 opacity-0 pointer-events-none"
-                    : "w-36 opacity-100",
+                    : "ml-3 w-36 opacity-100",
                 )}
               >
                 <img

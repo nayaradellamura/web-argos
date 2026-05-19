@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -25,6 +26,7 @@ import {
   type DashboardFilter,
 } from "@/components/dashboard/types";
 import { Skeleton } from "../ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 
 interface RecentClaimsTableProps {
   claims: DashboardClaim[];
@@ -149,6 +151,9 @@ export function RecentClaimsTable({
   emptyStateMessage = "Nenhum registro encontrado.",
   emptyStateIcon,
 }: RecentClaimsTableProps) {
+  const [navigatingClaimId, setNavigatingClaimId] = useState<string | null>(
+    null,
+  );
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
   const startItem = totalFiltered === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(currentPage * pageSize, totalFiltered);
@@ -259,9 +264,15 @@ export function RecentClaimsTable({
                       <TableCell className="font-medium text-primary">
                         <Link
                           href={`/orquestracao?protocolo=${encodeURIComponent(claim.id.replace("#", ""))}`}
-                          className="underline-offset-4 hover:underline"
+                          prefetch
+                          className="inline-flex items-center gap-2 underline-offset-4 hover:underline"
+                          onClick={() => setNavigatingClaimId(claim.id)}
+                          aria-busy={navigatingClaimId === claim.id}
                         >
                           {claim.id}
+                          {navigatingClaimId === claim.id && (
+                            <Spinner className="h-3.5 w-3.5 text-primary/80" />
+                          )}
                         </Link>
                       </TableCell>
                       <TableCell className="font-mono text-sm">

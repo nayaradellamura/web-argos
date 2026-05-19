@@ -22,6 +22,42 @@ function serializeTs(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+async function findSinistroDocRefById(rawId: string) {
+  const adminDb = getAdminDb();
+  const sinistroCollection = adminDb.collection("sinistro");
+  const id = decodeURIComponent(rawId).trim();
+
+  if (!id) {
+    return null;
+  }
+
+  const directDocRef = sinistroCollection.doc(id);
+  const directDocSnap = await directDocRef.get();
+
+  if (directDocSnap.exists) {
+    return directDocRef;
+  }
+
+  const byIdSnapshot = await sinistroCollection
+    .where("id", "==", id)
+    .limit(1)
+    .get();
+  if (!byIdSnapshot.empty) {
+    return byIdSnapshot.docs[0].ref;
+  }
+
+  const byProtocolSnapshot = await sinistroCollection
+    .where("protocol", "==", id)
+    .limit(1)
+    .get();
+
+  if (!byProtocolSnapshot.empty) {
+    return byProtocolSnapshot.docs[0].ref;
+  }
+
+  return null;
+}
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -29,11 +65,19 @@ export async function GET(
   try {
     const { id } = await params;
     const db = getAdminDb();
+    const ref = await findSinistroDocRefById(id);
+
+    if (!ref) {
+      return NextResponse.json(
+        { error: "Sinistro não encontrado." },
+        { status: 404 },
+      );
+    }
 
     // Sem orderBy para evitar índice composto — ordenação in-memory
     const vistoriasSnap = await db
       .collection("vistorias")
-      .where("sinistroId", "==", id)
+      .where("sinistroId", "==", ref.id)
       .get();
 
     const vistorias = vistoriasSnap.docs
@@ -41,7 +85,7 @@ export async function GET(
         const data = doc.data();
         return {
           id: doc.id,
-          sinistroId: (data.sinistroId as string | undefined) ?? id,
+          sinistroId: (data.sinistroId as string | undefined) ?? ref.id,
           status: (data.status as string | undefined) ?? "",
           motivoRejeicao: (data.motivoRejeicao as string | undefined) ?? null,
           createdAt: serializeTs(data.createdAt),
@@ -53,12 +97,13 @@ export async function GET(
       .map(({ _ts: _, ...rest }) => rest);
 
     return NextResponse.json({
-      sinistroId: id,
+      sinistroId: ref.id,
       vistorias,
       total: vistorias.length,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Erro desconhecido.";
+    const message =
+      error instanceof Error ? error.message : "Erro desconhecido.";
     return NextResponse.json(
       { error: "Falha ao buscar histórico de vistorias.", details: message },
       { status: 500 },

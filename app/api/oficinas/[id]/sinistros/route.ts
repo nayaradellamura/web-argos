@@ -34,8 +34,6 @@ function mapSinistroDoc(doc: QueryDocumentSnapshot<DocumentData>) {
     placa: toText(veiculoSnap.placa) || toText(data.plate),
     veiculo,
     status: toText(data.status),
-    statusVistoria: toText(data.statusVistoria),
-    stage: toText(data.stage),
     entryDate: toText(data.entryDate),
     priority: toText(data.priority),
   };

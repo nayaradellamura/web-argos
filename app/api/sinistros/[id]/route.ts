@@ -19,6 +19,42 @@ function serializeTs(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+async function findSinistroDocRefById(rawId: string) {
+  const adminDb = getAdminDb();
+  const sinistroCollection = adminDb.collection("sinistro");
+  const id = decodeURIComponent(rawId).trim();
+
+  if (!id) {
+    return null;
+  }
+
+  const directDocRef = sinistroCollection.doc(id);
+  const directDocSnap = await directDocRef.get();
+
+  if (directDocSnap.exists) {
+    return directDocRef;
+  }
+
+  const byIdSnapshot = await sinistroCollection
+    .where("id", "==", id)
+    .limit(1)
+    .get();
+  if (!byIdSnapshot.empty) {
+    return byIdSnapshot.docs[0].ref;
+  }
+
+  const byProtocolSnapshot = await sinistroCollection
+    .where("protocol", "==", id)
+    .limit(1)
+    .get();
+
+  if (!byProtocolSnapshot.empty) {
+    return byProtocolSnapshot.docs[0].ref;
+  }
+
+  return null;
+}
+
 // ── GET — Detalhe completo com última vistoria ────────────────────────────────
 
 export async function GET(
@@ -28,7 +64,16 @@ export async function GET(
   try {
     const { id } = await params;
     const db = getAdminDb();
-    const snap = await db.collection("sinistro").doc(id).get();
+    const ref = await findSinistroDocRefById(id);
+
+    if (!ref) {
+      return NextResponse.json(
+        { error: "Sinistro não encontrado." },
+        { status: 404 },
+      );
+    }
+
+    const snap = await ref.get();
 
     if (!snap.exists) {
       return NextResponse.json(
@@ -40,7 +85,7 @@ export async function GET(
     // Busca todas as vistorias e determina a mais recente
     const vistoriasSnap = await db
       .collection("vistorias")
-      .where("sinistroId", "==", id)
+      .where("sinistroId", "==", ref.id)
       .get();
 
     let latestVistoria: Record<string, unknown> | null = null;
@@ -61,7 +106,7 @@ export async function GET(
 
     const data = snap.data()!;
     return NextResponse.json({
-      id,
+      id: ref.id,
       ...data,
       checkInAt: serializeTs(data.checkInAt),
       entryDate: serializeTs(data.entryDate) ?? data.entryDate ?? null,
