@@ -484,7 +484,7 @@ const KanbanCardItem = memo(function KanbanCardItem({
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 w-full justify-start gap-1.5"
+            className="h-auto w-full min-w-0 justify-center gap-1.5 whitespace-normal px-2 py-1.5 text-center text-xs leading-tight"
             onClick={(event) => {
               event.stopPropagation();
               onQuickLink(card);
@@ -500,7 +500,7 @@ const KanbanCardItem = memo(function KanbanCardItem({
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 w-full justify-start gap-1.5"
+            className="h-auto w-full min-w-0 justify-center gap-1.5 whitespace-normal px-2 py-1.5 text-center text-xs leading-tight"
             onClick={(event) => {
               event.stopPropagation();
               onQuickAnalyze(card);

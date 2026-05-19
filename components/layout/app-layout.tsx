@@ -47,10 +47,12 @@ export function AppLayout({ children }: AppLayoutProps) {
         onClose={() => setSidebarOpen(false)}
       />
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:pl-0">
+      <div className="flex min-h-screen min-w-0 w-full flex-1 flex-col overflow-hidden transition-all duration-300 ease-in-out lg:pl-0">
         <Header onMenuClick={() => setSidebarOpen(true)} />
 
-        <main className="min-h-0 flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
+        <main className="min-h-0 flex-1 overflow-y-auto p-4 lg:p-6">
+          {children}
+        </main>
       </div>
     </div>
   );
