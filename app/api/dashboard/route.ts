@@ -17,11 +17,12 @@ const VALID_FILTERS = [
 
 type FilterKey = (typeof VALID_FILTERS)[number];
 
+// Inclui ambos os cases: dados legados em minúsculo e novos dados em MAIÚSCULO
 const VISTORIA_RELEVANT_STATUSES = [
-  "EM_ANDAMENTO",
-  "EM_ANALISE_IA",
-  "EM_ANALISE_OPERACIONAL",
-  "REJEITADA",
+  "EM_ANDAMENTO",        "em_andamento",
+  "EM_ANALISE_IA",       "em_analise_ia",
+  "EM_ANALISE_OPERACIONAL", "em_analise_operacional",
+  "REJEITADA",           "rejeitada",
 ] as const;
 
 function isValidFilter(value: string): value is FilterKey {
@@ -72,7 +73,7 @@ function mapSinistroDoc(doc: QueryDocumentSnapshot<DocumentData>) {
     oficina:
       (data.credenciadoSnapshot as Record<string, string> | undefined)?.name ??
       "",
-    status: (data.status as string | undefined) ?? "",
+    status: String(data.status ?? "").toUpperCase(),
     severidade: (data.priority as string | undefined) ?? "",
   };
 }
@@ -209,7 +210,8 @@ export async function GET(request: Request) {
       const ts = toMs(data.createdAt);
       const current = latestVistoria.get(sid);
       if (!current || ts > current.ts) {
-        latestVistoria.set(sid, { status: String(data.status ?? ""), ts });
+        // Normaliza para MAIÚSCULO para comparações consistentes (dados legados em minúsculo)
+        latestVistoria.set(sid, { status: String(data.status ?? "").toUpperCase(), ts });
       }
     }
 

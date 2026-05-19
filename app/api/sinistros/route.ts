@@ -57,7 +57,7 @@ function mapSinistroDoc(
     oficina:
       (data.credenciadoSnapshot as Record<string, string> | undefined)?.name ??
       "",
-    status: (data.status as string | undefined) ?? "",
+    status: String(data.status ?? "").toUpperCase(),
     severidade: (data.priority as string | undefined) ?? "",
     credenciadoId: (data.credenciadoId as string | undefined) ?? null,
     checkInAt: serializeTs(data.checkInAt),
@@ -125,19 +125,17 @@ function classifyKanbanColumn(
   data: DocumentData,
   latestVistoriaStatus: string | null,
 ): KanbanColumn {
-  if (data.status === "FINALIZADO") return "finalizados";
+  // Normaliza ambos os status para maiúsculo (dados legados podem estar em minúsculo)
+  const sinistroStatus = String(data.status ?? "").toUpperCase();
+  const vStatus = latestVistoriaStatus ? latestVistoriaStatus.toUpperCase() : null;
+
+  if (sinistroStatus === "FINALIZADO") return "finalizados";
   if (!hasCredenciado(data)) return "triagem";
   if (!hasCheckIn(data)) return "aguardandoCheckin";
-  // tem credenciado + checkIn → depende do estado da vistoria
-  if (latestVistoriaStatus === null) return "checkinRealizado"; // nenhuma vistoria iniciada
-  if (latestVistoriaStatus === "EM_ANALISE_OPERACIONAL")
-    return "analiseOperacional";
-  if (
-    latestVistoriaStatus === "EM_ANDAMENTO" ||
-    latestVistoriaStatus === "EM_ANALISE_IA"
-  )
-    return "emVistoria";
-  // REJEITADA ou FINALIZADA com sinistro ainda EM_ANDAMENTO → volta para emVistoria
+  if (vStatus === null) return "checkinRealizado";
+  if (vStatus === "EM_ANALISE_OPERACIONAL") return "analiseOperacional";
+  if (vStatus === "EM_ANDAMENTO" || vStatus === "EM_ANALISE_IA") return "emVistoria";
+  // REJEITADA ou FINALIZADA com sinistro ainda em andamento → emVistoria
   return "emVistoria";
 }
 
@@ -163,7 +161,7 @@ function mapKanbanCard(
   return {
     id: doc.id,
     protocol: (data.protocol as string | undefined) ?? doc.id,
-    status: (data.status as string | undefined) ?? "",
+    status: String(data.status ?? "").toUpperCase(),
     priority: (data.priority as string | undefined) ?? "",
     claimType: (data.claimType as string | undefined) ?? "",
     damageDescription: (data.damageDescription as string | undefined) ?? "",
@@ -257,9 +255,9 @@ export async function GET(request: Request) {
           const ts = toMs(data.createdAt);
           if (ts > latestTs) {
             latestTs = ts;
-            latestStatus = String(data.status ?? "");
+            latestStatus = String(data.status ?? "").toUpperCase();
           }
-          if (data.status === "REJEITADA") {
+          if (String(data.status ?? "").toUpperCase() === "REJEITADA") {
             everRejected = true;
           }
         }
@@ -296,9 +294,9 @@ export async function GET(request: Request) {
         const ts = toMs(data.createdAt);
         if (ts > (latestTs.get(sid) ?? 0)) {
           latestTs.set(sid, ts);
-          latestStatus.set(sid, String(data.status ?? ""));
+          latestStatus.set(sid, String(data.status ?? "").toUpperCase());
         }
-        if (data.status === "REJEITADA") everRejected.set(sid, true);
+        if (String(data.status ?? "").toUpperCase() === "REJEITADA") everRejected.set(sid, true);
       }
 
       const columns: Record<KanbanColumn, ReturnType<typeof mapKanbanCard>[]> =
@@ -390,7 +388,7 @@ export async function GET(request: Request) {
         const existing = latestVistoria.get(sid);
         if (!existing || toMs(data.createdAt) > toMs(existing.createdAt)) {
           latestVistoria.set(sid, {
-            status: String(data.status ?? ""),
+            status: String(data.status ?? "").toUpperCase(),
             createdAt: data.createdAt,
             motivoRejeicao: String(data.motivoRejeicao ?? ""),
           });

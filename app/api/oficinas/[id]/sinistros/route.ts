@@ -33,7 +33,7 @@ function mapSinistroDoc(doc: QueryDocumentSnapshot<DocumentData>) {
     id: toText(data.protocol) || doc.id,
     placa: toText(veiculoSnap.placa) || toText(data.plate),
     veiculo,
-    status: toText(data.status),
+    status: toText(data.status).toUpperCase(),
     entryDate: toText(data.entryDate),
     priority: toText(data.priority),
   };

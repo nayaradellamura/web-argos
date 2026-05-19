@@ -86,7 +86,7 @@ export async function GET(
         return {
           id: doc.id,
           sinistroId: (data.sinistroId as string | undefined) ?? ref.id,
-          status: (data.status as string | undefined) ?? "",
+          status: String(data.status ?? "").toUpperCase(),
           motivoRejeicao: (data.motivoRejeicao as string | undefined) ?? null,
           createdAt: serializeTs(data.createdAt),
           updatedAt: serializeTs(data.updatedAt),
