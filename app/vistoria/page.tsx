@@ -12,35 +12,34 @@ import {
   CheckCircle2,
   Timer,
   AlertTriangle,
-  Plus,
   FileText,
   FileAudio,
   Image as ImageIcon,
   Download,
   ExternalLink,
+  BrainCircuit,
+  ClipboardCheck,
+  XCircle,
+  Activity,
+  MessageSquare,
+  Bot,
+  User,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import {
   Empty,
@@ -52,15 +51,17 @@ import {
 } from "@/components/ui/empty";
 import {
   getCredenciadosDisponiveisNomes,
-  getSinistrosStore,
   getVistoriasVinculadasStore,
 } from "@/lib/business-rules-store";
 
-type LifecycleTab =
-  | "pendentes_vinculo"
-  | "em_andamento"
-  | "em_analise"
-  | "concluidas";
+type VistoriaStatus =
+  | "EM_ANDAMENTO"
+  | "EM_ANALISE_IA"
+  | "EM_ANALISE_OPERACIONAL"
+  | "FINALIZADA"
+  | "REJEITADA";
+
+type LifecycleTab = VistoriaStatus;
 
 interface InspecaoData {
   id: string;
@@ -69,7 +70,7 @@ interface InspecaoData {
   local: string;
   data: string;
   hora: string;
-  status: "pendente" | "agendada" | "realizada";
+  status: VistoriaStatus;
   startedAt?: string;
   veiculo: string;
   placa: string;
@@ -80,19 +81,37 @@ interface InspecaoData {
   aiRiskReason?: string;
   laudo?: string;
   pdfLaudoUrl?: string;
-  audios?: {
-    id: string;
-    nome: string;
-    url: string;
-    transcricao: string;
-  }[];
-  imagens?: {
-    id: string;
-    nome: string;
-    url: string;
-  }[];
   descricaoArtigos?: string;
   observacoes?: string;
+  alertas?: string; // IA alert message
+  motivoRejeicao?: string; // rejection reason
+  // Firestore real data fields
+  idvistoria?: string;
+  chatmessages?: {
+    id: string;
+    role: "ai" | "user" | "photo";
+    text: string;
+    createdAt?: string;
+  }[];
+  images?: {
+    id: string;
+    fileName?: string;
+    contentType: string;
+    vistoria_1?: string; // base64
+    vistoria_2?: string; // base64 fallback
+    createdAt?: string;
+  }[];
+  audios?: {
+    id: string;
+    fileName?: string;
+    contentType: string;
+    vistoria_1?: string; // base64
+    createdAt?: string;
+    // legacy mock fields
+    nome?: string;
+    url?: string;
+    transcricao?: string;
+  }[];
 }
 
 const mockInspecoes: InspecaoData[] = [
@@ -103,7 +122,7 @@ const mockInspecoes: InspecaoData[] = [
     local: "Av. Paulista, 1000 - São Paulo, SP",
     data: "2026-04-15",
     hora: "14:30",
-    status: "agendada",
+    status: "EM_ANDAMENTO",
     startedAt: "2026-04-15T14:30:00",
     veiculo: "Honda Civic",
     placa: "ABC-1234",
@@ -115,32 +134,61 @@ const mockInspecoes: InspecaoData[] = [
       "Veículo com avaria na lateral esquerda, incluindo amassamento e risco profundo na porta dianteira. Não foram identificados indícios de danos estruturais no monobloco. Reparo recomendado: funilaria, pintura e alinhamento da porta.",
     pdfLaudoUrl:
       "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+    chatmessages: [
+      {
+        id: "msg-1",
+        role: "ai",
+        text: "Vistoria iniciada. Aguardando envio das primeiras fotos do veículo.",
+        createdAt: "2026-04-15T14:31:00",
+      },
+      {
+        id: "msg-2",
+        role: "user",
+        text: "Fotos da lateral esquerda enviadas. Dano visível na porta dianteira.",
+        createdAt: "2026-04-15T14:35:00",
+      },
+      {
+        id: "msg-3",
+        role: "ai",
+        text: "Imagens recebidas. Detectado amassamento na porta dianteira esquerda. Nenhuma anomalia de fraude identificada. Reparo de funilaria recomendado.",
+        createdAt: "2026-04-15T14:36:00",
+      },
+      {
+        id: "msg-4",
+        role: "photo",
+        text: "Foto adicional da roda dianteira enviada pelo perito.",
+        createdAt: "2026-04-15T14:40:00",
+      },
+    ],
+    images: [
+      {
+        id: "IMG-001",
+        fileName: "lateral_esquerda.jpg",
+        contentType: "image/jpeg",
+        vistoria_1: "/9j/4AAQSkZJRgAB", // placeholder, real base64 would be here
+        createdAt: "2026-04-15T14:35:00",
+      },
+    ],
     audios: [
       {
         id: "AUD-001",
-        nome: "Áudio do vistoriador",
+        fileName: "audio_vistoriador.mp3",
+        contentType: "audio/mpeg",
         url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+        nome: "Áudio do vistoriador",
         transcricao:
           "Iniciando vistoria do veículo Honda Civic placa ABC-1234. Constatado dano na porta dianteira esquerda com necessidade de reparo de funilaria.",
+        createdAt: "2026-04-15T14:32:00",
       },
       {
         id: "AUD-002",
-        nome: "Relato do segurado",
+        fileName: "relato_segurado.mp3",
+        contentType: "audio/mpeg",
         url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+        nome: "Relato do segurado",
         transcricao:
           "O impacto ocorreu durante manobra de estacionamento. O veículo estava em baixa velocidade no momento da colisão.",
-      },
-    ],
-    imagens: [
-      {
-        id: "IMG-001",
-        nome: "Lateral esquerda",
-        url: "https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?auto=format&fit=crop&w=1200&q=80",
-      },
-      {
-        id: "IMG-002",
-        nome: "Porta dianteira",
-        url: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?auto=format&fit=crop&w=1200&q=80",
+        createdAt: "2026-04-15T14:38:00",
       },
     ],
     descricaoArtigos: "Dano na lateral esquerda, amassamento na porta",
@@ -152,7 +200,7 @@ const mockInspecoes: InspecaoData[] = [
     local: "Rua das Flores, 456 - Rio de Janeiro, RJ",
     data: "2026-04-12",
     hora: "10:00",
-    status: "realizada",
+    status: "EM_ANALISE_IA",
     startedAt: "2026-04-11T10:00:00",
     veiculo: "Toyota Corolla",
     placa: "XYZ-5678",
@@ -165,20 +213,45 @@ const mockInspecoes: InspecaoData[] = [
       "Quebra integral do vidro traseiro com estilhaçamento interno. Não há comprometimento de lanternas ou estrutura de tampa do porta-malas. Reparo recomendado: substituição de vidro e limpeza técnica interna.",
     pdfLaudoUrl:
       "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+    chatmessages: [
+      {
+        id: "msg-a",
+        role: "ai",
+        text: "Vistoria iniciada. Perito conectado ao sistema.",
+        createdAt: "2026-04-12T09:55:00",
+      },
+      {
+        id: "msg-b",
+        role: "photo",
+        text: "Foto do vidro traseiro enviada pelo credenciado.",
+        createdAt: "2026-04-12T10:02:00",
+      },
+      {
+        id: "msg-c",
+        role: "ai",
+        text: "⚠️ Alerta de risco de fraude detectado: divergência entre o relato em áudio e as imagens enviadas. Encaminhando para análise operacional.",
+        createdAt: "2026-04-12T10:03:00",
+      },
+    ],
     audios: [
       {
         id: "AUD-003",
-        nome: "Registro da oficina",
+        fileName: "registro_oficina.mp3",
+        contentType: "audio/mpeg",
         url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+        nome: "Registro da oficina",
         transcricao:
           "Vidro traseiro do Toyota Corolla encontra-se totalmente comprometido. Serviço de substituição pode ser realizado no mesmo dia.",
+        createdAt: "2026-04-12T10:00:00",
       },
     ],
-    imagens: [
+    images: [
       {
         id: "IMG-003",
-        nome: "Vidro traseiro",
-        url: "https://images.unsplash.com/photo-1605515298946-d057f8f06cf7?auto=format&fit=crop&w=1200&q=80",
+        fileName: "vidro_traseiro.jpg",
+        contentType: "image/jpeg",
+        vistoria_1: "/9j/4AAQSkZJRgAB", // placeholder
+        createdAt: "2026-04-12T10:02:00",
       },
     ],
     descricaoArtigos: "Vidro traseiro quebrado",
@@ -191,7 +264,7 @@ const mockInspecoes: InspecaoData[] = [
     local: "Rua do Comércio, 789 - Belo Horizonte, MG",
     data: "2026-04-20",
     hora: "09:00",
-    status: "pendente",
+    status: "EM_ANALISE_OPERACIONAL",
     veiculo: "VW Golf",
     placa: "DEF-9012",
     cliente: "Carlos Mendes",
@@ -206,7 +279,7 @@ const mockInspecoes: InspecaoData[] = [
     local: "Limeira - SP",
     data: "2026-04-10",
     hora: "08:00",
-    status: "realizada",
+    status: "FINALIZADA",
     startedAt: "2026-04-09T08:00:00",
     veiculo: "Nissan Kicks",
     placa: "YZA-7890",
@@ -225,22 +298,21 @@ export default function VistoriaPage() {
   const [credenciadosDisponiveis, setCredenciadosDisponiveis] = useState<
     string[]
   >([]);
-  const [sinistrosDisponiveis, setSinistrosDisponiveis] = useState<
-    { id: string; veiculo: string; placa: string; cliente: string }[]
-  >([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<LifecycleTab>("pendentes_vinculo");
+  const [activeTab, setActiveTab] = useState<LifecycleTab>("EM_ANDAMENTO");
   const [isTabLoading, setIsTabLoading] = useState(true);
   const [selectedInspecao, setSelectedInspecao] = useState<InspecaoData | null>(
     null,
   );
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [nextId, setNextId] = useState(4);
-  const [formData, setFormData] = useState({
-    sinistroId: "",
-    credenciado: "",
-    status: "agendada" as "agendada" | "realizada" | "pendente",
+  const [accordionState, setAccordionState] = useState({
+    laudo: true,
+    chat: false,
+    imagens: false,
+    audios: false,
   });
+  const [chatMessages, setChatMessages] = useState<
+    InspecaoData["chatmessages"]
+  >([]);
 
   useEffect(() => {
     const syncCredenciados = () => {
@@ -262,7 +334,7 @@ export default function VistoriaPage() {
             updatedInspecoes[existingIndex] = {
               ...updatedInspecoes[existingIndex],
               credenciado: vinculada.credenciado,
-              status: vinculada.status,
+              status: (vinculada.status as VistoriaStatus) ?? "EM_ANDAMENTO",
               veiculo: vinculada.veiculo,
               placa: vinculada.placa,
               cliente:
@@ -280,7 +352,7 @@ export default function VistoriaPage() {
             local: "",
             data: "",
             hora: "",
-            status: vinculada.status,
+            status: (vinculada.status as VistoriaStatus) ?? "EM_ANDAMENTO",
             startedAt: new Date().toISOString(),
             veiculo: vinculada.veiculo,
             placa: vinculada.placa,
@@ -297,24 +369,10 @@ export default function VistoriaPage() {
       });
     };
 
-    const syncSinistros = () => {
-      const sinistros = getSinistrosStore();
-      setSinistrosDisponiveis(
-        sinistros.map((sinistro) => ({
-          id: sinistro.id,
-          veiculo: sinistro.vehicle,
-          placa: sinistro.plate,
-          cliente: "Não informado",
-        })),
-      );
-    };
-
     syncCredenciados();
-    syncSinistros();
     syncVistoriasVinculadas();
 
     window.addEventListener("argos:credenciados-updated", syncCredenciados);
-    window.addEventListener("argos:sinistros-updated", syncSinistros);
     window.addEventListener(
       "argos:vistorias-vinculadas-updated",
       syncVistoriasVinculadas,
@@ -325,7 +383,6 @@ export default function VistoriaPage() {
         "argos:credenciados-updated",
         syncCredenciados,
       );
-      window.removeEventListener("argos:sinistros-updated", syncSinistros);
       window.removeEventListener(
         "argos:vistorias-vinculadas-updated",
         syncVistoriasVinculadas,
@@ -343,35 +400,35 @@ export default function VistoriaPage() {
     return () => window.clearTimeout(timeout);
   }, [activeTab]);
 
+  // Sincronizar mensagens do chat quando selectedInspecao muda
+  useEffect(() => {
+    if (selectedInspecao?.chatmessages) {
+      setChatMessages([...selectedInspecao.chatmessages]);
+    } else {
+      setChatMessages([]);
+    }
+  }, [selectedInspecao?.id]);
+
   const getLifecycleForInspecao = (inspecao: InspecaoData): LifecycleTab => {
-    if (!inspecao.credenciado?.trim()) {
-      return "pendentes_vinculo";
-    }
-
-    if (inspecao.status !== "realizada") {
-      return "em_andamento";
-    }
-
-    if (inspecao.aprovada) {
-      return "concluidas";
-    }
-
-    return "em_analise";
+    return inspecao.status;
   };
 
   const tabsCount = useMemo(
     () => ({
-      pendentes_vinculo: inspecoes.filter(
-        (inspecao) => getLifecycleForInspecao(inspecao) === "pendentes_vinculo",
+      EM_ANDAMENTO: inspecoes.filter(
+        (i) => getLifecycleForInspecao(i) === "EM_ANDAMENTO",
       ).length,
-      em_andamento: inspecoes.filter(
-        (inspecao) => getLifecycleForInspecao(inspecao) === "em_andamento",
+      EM_ANALISE_IA: inspecoes.filter(
+        (i) => getLifecycleForInspecao(i) === "EM_ANALISE_IA",
       ).length,
-      em_analise: inspecoes.filter(
-        (inspecao) => getLifecycleForInspecao(inspecao) === "em_analise",
+      EM_ANALISE_OPERACIONAL: inspecoes.filter(
+        (i) => getLifecycleForInspecao(i) === "EM_ANALISE_OPERACIONAL",
       ).length,
-      concluidas: inspecoes.filter(
-        (inspecao) => getLifecycleForInspecao(inspecao) === "concluidas",
+      FINALIZADA: inspecoes.filter(
+        (i) => getLifecycleForInspecao(i) === "FINALIZADA",
+      ).length,
+      REJEITADA: inspecoes.filter(
+        (i) => getLifecycleForInspecao(i) === "REJEITADA",
       ).length,
     }),
     [inspecoes],
@@ -408,28 +465,51 @@ export default function VistoriaPage() {
     });
   }, [inspecoes, activeTab, searchQuery]);
 
-  const getStatusConfig = (status: string) => {
+  const getStatusConfig = (status: VistoriaStatus) => {
     switch (status) {
-      case "realizada":
+      case "EM_ANDAMENTO":
         return {
-          label: "Realizada",
+          label: "Em Andamento",
           color:
-            "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+            "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+          icon: Activity,
+          kpiColor: "text-blue-600 dark:text-blue-400",
+          kpiIconBg: "bg-blue-100 dark:bg-blue-900/30",
+        };
+      case "EM_ANALISE_IA":
+        return {
+          label: "Análise IA",
+          color:
+            "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300",
+          icon: BrainCircuit,
+          kpiColor: "text-violet-600 dark:text-violet-400",
+          kpiIconBg: "bg-violet-100 dark:bg-violet-900/30",
+        };
+      case "EM_ANALISE_OPERACIONAL":
+        return {
+          label: "Análise Operacional",
+          color:
+            "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+          icon: ClipboardCheck,
+          kpiColor: "text-amber-600 dark:text-amber-400",
+          kpiIconBg: "bg-amber-100 dark:bg-amber-900/30",
+        };
+      case "FINALIZADA":
+        return {
+          label: "Finalizada",
+          color:
+            "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
           icon: CheckCircle2,
+          kpiColor: "text-emerald-600 dark:text-emerald-400",
+          kpiIconBg: "bg-emerald-100 dark:bg-emerald-900/30",
         };
-      case "agendada":
+      case "REJEITADA":
         return {
-          label: "Agendada",
-          color:
-            "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-          icon: Calendar,
-        };
-      default:
-        return {
-          label: "Pendente",
-          color:
-            "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-          icon: AlertTriangle,
+          label: "Rejeitada",
+          color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+          icon: XCircle,
+          kpiColor: "text-red-600 dark:text-red-400",
+          kpiIconBg: "bg-red-100 dark:bg-red-900/30",
         };
     }
   };
@@ -439,59 +519,6 @@ export default function VistoriaPage() {
     const dataConvertida = new Date(data);
     if (Number.isNaN(dataConvertida.getTime())) return "Não informado";
     return `${dataConvertida.toLocaleDateString("pt-BR")} às ${hora}`;
-  };
-
-  const handleCreateVistoria = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!formData.sinistroId || !formData.credenciado) {
-      alert("Selecione o sinistro e o credenciado");
-      return;
-    }
-
-    // Encontrar dados do sinistro
-    const sinistroInfo = sinistrosDisponiveis.find(
-      (s) => s.id === formData.sinistroId,
-    );
-    if (!sinistroInfo) {
-      alert("Sinistro não encontrado");
-      return;
-    }
-
-    // Verificar se já existe vistoria para este sinistro
-    const jaPossuiVistoria = inspecoes.some(
-      (i) => i.sinistroId === formData.sinistroId,
-    );
-    if (jaPossuiVistoria) {
-      alert("Este sinistro já possui uma vistoria vinculada");
-      return;
-    }
-
-    const novaVistoria: InspecaoData = {
-      id: `VST-${String(nextId).padStart(3, "0")}`,
-      sinistroId: formData.sinistroId,
-      credenciado: formData.credenciado,
-      local: "",
-      data: "",
-      hora: "",
-      startedAt: new Date().toISOString(),
-      status: formData.status,
-      veiculo: sinistroInfo.veiculo,
-      placa: sinistroInfo.placa,
-      cliente: sinistroInfo.cliente,
-      tipoDano: "Dano em análise",
-      aprovada: false,
-      aiFraudRisk: false,
-    };
-
-    setInspecoes([...inspecoes, novaVistoria]);
-    setNextId(nextId + 1);
-    setIsCreateOpen(false);
-    setFormData({
-      sinistroId: "",
-      credenciado: "",
-      status: "agendada",
-    });
   };
 
   const getElapsedTimeLabel = (inspecao: InspecaoData) => {
@@ -563,29 +590,35 @@ export default function VistoriaPage() {
       LifecycleTab,
       { title: string; description: string; icon: React.ReactNode }
     > = {
-      pendentes_vinculo: {
-        title: "Sem vistorias pendentes de vínculo",
-        description:
-          "Todas as vistorias desta busca já possuem oficina vinculada ou não há itens nesta etapa.",
-        icon: <AlertTriangle className="h-5 w-5" />,
-      },
-      em_andamento: {
+      EM_ANDAMENTO: {
         title: "Nenhuma vistoria em andamento",
         description:
-          "No momento não existem vistorias sendo executadas na oficina para os filtros aplicados.",
-        icon: <Timer className="h-5 w-5" />,
+          "No momento não há vistorias com status Em Andamento para os filtros aplicados.",
+        icon: <Activity className="h-5 w-5" />,
       },
-      em_analise: {
-        title: "Nenhuma vistoria em análise",
+      EM_ANALISE_IA: {
+        title: "Nenhuma vistoria em análise pela IA",
         description:
-          "Não há laudos pendentes de revisão técnica/IA nesta seleção.",
-        icon: <FileText className="h-5 w-5" />,
+          "Não há vistorias aguardando análise do motor de inteligência artificial.",
+        icon: <BrainCircuit className="h-5 w-5" />,
       },
-      concluidas: {
-        title: "Nenhuma vistoria concluída",
+      EM_ANALISE_OPERACIONAL: {
+        title: "Nenhuma vistoria em análise operacional",
         description:
-          "Não existem vistorias aprovadas com laudo final disponível para download.",
+          "Não há vistorias aguardando revisão técnica da equipe operacional.",
+        icon: <ClipboardCheck className="h-5 w-5" />,
+      },
+      FINALIZADA: {
+        title: "Nenhuma vistoria finalizada",
+        description:
+          "Não existem vistorias finalizadas com laudo disponível para esta seleção.",
         icon: <CheckCircle2 className="h-5 w-5" />,
+      },
+      REJEITADA: {
+        title: "Nenhuma vistoria rejeitada",
+        description:
+          "Não há vistorias com status rejeitado para os filtros aplicados.",
+        icon: <XCircle className="h-5 w-5" />,
       },
     };
 
@@ -618,125 +651,117 @@ export default function VistoriaPage() {
           const statusConfig = getStatusConfig(inspecao.status);
           const StatusIcon = statusConfig.icon;
           const showIaRiskHighlight =
-            tab === "em_analise" && Boolean(inspecao.aiFraudRisk);
+            tab === "EM_ANALISE_IA" && Boolean(inspecao.aiFraudRisk);
 
           return (
-            <Card
+            <div
               key={inspecao.id}
               className={cn(
-                "transition-shadow hover:shadow-md",
-                showIaRiskHighlight &&
-                  "border-red-300 bg-red-50/40 dark:border-red-900/40 dark:bg-red-950/10",
+                "group rounded-xl border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700 dark:bg-slate-800/60",
+                showIaRiskHighlight
+                  ? "border-red-300 bg-red-50/60 dark:border-red-800/60 dark:bg-red-950/20"
+                  : "border-slate-200",
               )}
             >
-              <CardContent className="pt-6">
-                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-                  <div className="flex-1 space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-lg font-semibold">
-                            {inspecao.sinistroId}
-                          </span>
-                          <Badge
-                            className={cn(
-                              "inline-flex gap-1",
-                              statusConfig.color,
-                            )}
-                          >
-                            <StatusIcon className="h-3 w-3" />
-                            {statusConfig.label}
-                          </Badge>
-                          {showIaRiskHighlight && (
-                            <Badge variant="destructive">
-                              ⚠️ Risco de Fraude
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {inspecao.veiculo} • {inspecao.placa}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 text-sm">
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Building2 className="h-4 w-4" />
-                        <span>
-                          {inspecao.credenciado || "Aguardando vínculo"}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <MapPin className="h-4 w-4" />
-                        <span>{inspecao.local || "Local não informado"}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Calendar className="h-4 w-4" />
-                        <span>
-                          {formatarDataHora(inspecao.data, inspecao.hora)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <span className="font-medium text-foreground">
-                          Cliente:
-                        </span>
-                        <span>{inspecao.cliente}</span>
-                      </div>
-                      {tab === "em_andamento" && (
-                        <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
-                          <Timer className="h-4 w-4" />
-                          <span className="text-sm font-medium">
-                            Tempo corrido: {getElapsedTimeLabel(inspecao)}
-                          </span>
-                        </div>
+              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                {/* Left: identity info */}
+                <div className="flex flex-1 flex-col gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-base font-bold tracking-tight text-foreground">
+                      {inspecao.sinistroId}
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      {inspecao.veiculo} &bull; {inspecao.placa}
+                    </span>
+                    <Badge
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold",
+                        statusConfig.color,
                       )}
-                      {tab === "em_analise" && inspecao.aiRiskReason && (
-                        <p className="text-sm font-medium text-red-700 dark:text-red-300">
-                          {inspecao.aiRiskReason}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="w-full sm:w-auto">
-                    {tab === "concluidas" ? (
-                      <Button
-                        asChild
-                        className="w-full gap-2 sm:w-auto"
-                        variant="outline"
-                        disabled={!inspecao.pdfLaudoUrl}
-                      >
-                        <a
-                          href={inspecao.pdfLaudoUrl || "#"}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          <Download className="h-4 w-4" />
-                          Baixar PDF
-                        </a>
-                      </Button>
-                    ) : tab === "em_analise" ? (
-                      <Button
-                        className="w-full gap-2 sm:w-auto"
-                        onClick={() => setSelectedInspecao(inspecao)}
-                      >
-                        <Eye className="h-4 w-4" />
-                        Revisar Laudo e IA
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        className="w-full gap-2 sm:w-auto"
-                        onClick={() => setSelectedInspecao(inspecao)}
-                      >
-                        <Eye className="h-4 w-4" />
-                        Detalhes
-                      </Button>
+                    >
+                      <StatusIcon className="h-3 w-3" />
+                      {statusConfig.label}
+                    </Badge>
+                    {showIaRiskHighlight && (
+                      <Badge variant="destructive" className="rounded-full">
+                        ⚠️ Risco de Fraude
+                      </Badge>
                     )}
                   </div>
+
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <Building2 className="h-3.5 w-3.5" />
+                      {inspecao.credenciado || "Aguardando vínculo"}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5" />
+                      {formatarDataHora(inspecao.data, inspecao.hora)}
+                    </span>
+                    {inspecao.local && (
+                      <span className="flex items-center gap-1.5">
+                        <MapPin className="h-3.5 w-3.5" />
+                        {inspecao.local}
+                      </span>
+                    )}
+                    {tab === "EM_ANDAMENTO" && (
+                      <span className="flex items-center gap-1.5 font-medium text-amber-600 dark:text-amber-400">
+                        <Timer className="h-3.5 w-3.5" />
+                        {getElapsedTimeLabel(inspecao)}
+                      </span>
+                    )}
+                  </div>
+
+                  {tab === "EM_ANALISE_IA" && inspecao.aiRiskReason && (
+                    <p className="text-xs font-medium text-red-600 dark:text-red-400">
+                      {inspecao.aiRiskReason}
+                    </p>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
+
+                {/* Right: action button */}
+                <div className="flex shrink-0 items-center">
+                  {tab === "FINALIZADA" ? (
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={!inspecao.pdfLaudoUrl}
+                    >
+                      <a
+                        href={inspecao.pdfLaudoUrl || "#"}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <Download className="h-4 w-4" />
+                        Baixar PDF
+                      </a>
+                    </Button>
+                  ) : tab === "EM_ANALISE_IA" ||
+                    tab === "EM_ANALISE_OPERACIONAL" ? (
+                    <Button
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => setSelectedInspecao(inspecao)}
+                    >
+                      <Eye className="h-4 w-4" />
+                      Revisar Laudo
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => setSelectedInspecao(inspecao)}
+                    >
+                      <Eye className="h-4 w-4" />
+                      Detalhes
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
           );
         })}
       </div>
@@ -751,68 +776,67 @@ export default function VistoriaPage() {
           description="Agende, acompanhe e gerencie todas as vistorias de sinistros"
         />
 
-        {/* Novo Button */}
-        <div className="flex justify-end">
-          <Button onClick={() => setIsCreateOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Nova Vistoria
-          </Button>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Pendentes de vínculo
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {tabsCount.pendentes_vinculo}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Em andamento
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{tabsCount.em_andamento}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Em análise
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{tabsCount.em_analise}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Concluídas
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{tabsCount.concluidas}</div>
-            </CardContent>
-          </Card>
+        {/* Stats Cards — cada card funciona como filtro ativo */}
+        <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          {(
+            [
+              ["EM_ANDAMENTO", tabsCount.EM_ANDAMENTO],
+              ["EM_ANALISE_IA", tabsCount.EM_ANALISE_IA],
+              ["EM_ANALISE_OPERACIONAL", tabsCount.EM_ANALISE_OPERACIONAL],
+              ["FINALIZADA", tabsCount.FINALIZADA],
+              ["REJEITADA", tabsCount.REJEITADA],
+            ] as [VistoriaStatus, number][]
+          ).map(([status, count]) => {
+            const cfg = getStatusConfig(status);
+            const Icon = cfg.icon;
+            const isActive = activeTab === status;
+            const ringMap: Record<VistoriaStatus, string> = {
+              EM_ANDAMENTO: "ring-blue-500",
+              EM_ANALISE_IA: "ring-violet-500",
+              EM_ANALISE_OPERACIONAL: "ring-amber-500",
+              FINALIZADA: "ring-emerald-500",
+              REJEITADA: "ring-red-500",
+            };
+            return (
+              <button
+                key={status}
+                type="button"
+                onClick={() => setActiveTab(status)}
+                className={cn(
+                  "flex cursor-pointer flex-col gap-3 rounded-xl border p-4 text-left shadow-sm transition-all hover:scale-[1.02] hover:shadow-md dark:bg-slate-800/60",
+                  isActive
+                    ? cn(
+                        "ring-2 ring-offset-2 dark:ring-offset-slate-900",
+                        ringMap[status],
+                        "border-transparent bg-white dark:bg-slate-800",
+                      )
+                    : "border-slate-200 bg-white opacity-70 hover:opacity-100 dark:border-slate-700 dark:bg-slate-800/40",
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    {cfg.label}
+                  </p>
+                  <span
+                    className={cn(
+                      "flex h-8 w-8 items-center justify-center rounded-full",
+                      cfg.kpiIconBg,
+                    )}
+                  >
+                    <Icon className={cn("h-4 w-4", cfg.kpiColor)} />
+                  </span>
+                </div>
+                <p className={cn("text-3xl font-bold", cfg.kpiColor)}>
+                  {count}
+                </p>
+              </button>
+            );
+          })}
         </div>
 
         <Card>
           <CardHeader className="pb-4">
-            <CardTitle className="text-base font-semibold">
-              Lifecycle de Vistorias
-            </CardTitle>
+            <CardTitle className="text-base font-semibold">Vistorias</CardTitle>
             <div className="relative w-full">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
@@ -825,59 +849,9 @@ export default function VistoriaPage() {
           </CardHeader>
 
           <CardContent>
-            <Tabs
-              value={activeTab}
-              onValueChange={(value) => setActiveTab(value as LifecycleTab)}
-              className="space-y-4"
-            >
-              <TabsList className="h-auto w-full flex-wrap justify-start gap-2 bg-transparent p-0">
-                <TabsTrigger
-                  value="pendentes_vinculo"
-                  className="h-9 rounded-md border border-border bg-muted/40 px-3"
-                >
-                  Pendentes de Vínculo ({tabsCount.pendentes_vinculo})
-                </TabsTrigger>
-                <TabsTrigger
-                  value="em_andamento"
-                  className="h-9 rounded-md border border-border bg-muted/40 px-3"
-                >
-                  Em Andamento ({tabsCount.em_andamento})
-                </TabsTrigger>
-                <TabsTrigger
-                  value="em_analise"
-                  className="h-9 rounded-md border border-border bg-muted/40 px-3"
-                >
-                  Em Análise ({tabsCount.em_analise})
-                </TabsTrigger>
-                <TabsTrigger
-                  value="concluidas"
-                  className="h-9 rounded-md border border-border bg-muted/40 px-3"
-                >
-                  Concluídas ({tabsCount.concluidas})
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="pendentes_vinculo" className="mt-0">
-                {isTabLoading
-                  ? renderTabSkeleton()
-                  : renderInspectionCards("pendentes_vinculo")}
-              </TabsContent>
-              <TabsContent value="em_andamento" className="mt-0">
-                {isTabLoading
-                  ? renderTabSkeleton()
-                  : renderInspectionCards("em_andamento")}
-              </TabsContent>
-              <TabsContent value="em_analise" className="mt-0">
-                {isTabLoading
-                  ? renderTabSkeleton()
-                  : renderInspectionCards("em_analise")}
-              </TabsContent>
-              <TabsContent value="concluidas" className="mt-0">
-                {isTabLoading
-                  ? renderTabSkeleton()
-                  : renderInspectionCards("concluidas")}
-              </TabsContent>
-            </Tabs>
+            {isTabLoading
+              ? renderTabSkeleton()
+              : renderInspectionCards(activeTab)}
           </CardContent>
         </Card>
       </div>
@@ -889,320 +863,435 @@ export default function VistoriaPage() {
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
-            <DialogTitle>
-              Detalhes da Vistoria {selectedInspecao?.id}
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              {selectedInspecao?.idvistoria || selectedInspecao?.id}
+              {selectedInspecao && (
+                <Badge
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold",
+                    getStatusConfig(selectedInspecao.status).color,
+                  )}
+                >
+                  {(() => {
+                    const cfg = getStatusConfig(selectedInspecao.status);
+                    const Icon = cfg.icon;
+                    return (
+                      <>
+                        <Icon className="h-3 w-3" />
+                        {cfg.label}
+                      </>
+                    );
+                  })()}
+                </Badge>
+              )}
             </DialogTitle>
             <DialogDescription>
-              Sinistro {selectedInspecao?.sinistroId}
+              Referente ao sinistro:{" "}
+              <span className="font-semibold text-foreground underline decoration-dashed underline-offset-2">
+                {selectedInspecao?.sinistroId}
+              </span>
             </DialogDescription>
           </DialogHeader>
 
           {selectedInspecao && (
-            <div className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1 rounded-lg border border-border/60 bg-muted/20 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Veículo
-                  </p>
-                  <p className="text-sm font-medium">
-                    {selectedInspecao.veiculo}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {selectedInspecao.placa}
-                  </p>
-                </div>
-
-                <div className="space-y-1 rounded-lg border border-border/60 bg-muted/20 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Cliente
-                  </p>
-                  <p className="text-sm font-medium">
-                    {selectedInspecao.cliente}
-                  </p>
-                </div>
-
-                <div className="space-y-1 rounded-lg border border-border/60 bg-muted/20 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Credenciado
-                  </p>
-                  <p className="text-sm font-medium">
-                    {selectedInspecao.credenciado}
-                  </p>
-                </div>
-
-                <div className="space-y-1 rounded-lg border border-border/60 bg-muted/20 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Local
-                  </p>
-                  <p className="text-sm font-medium">
-                    {selectedInspecao.local}
-                  </p>
-                </div>
-
-                <div className="space-y-1 rounded-lg border border-border/60 bg-muted/20 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Data e Hora
-                  </p>
-                  <p className="text-sm font-medium">
-                    {formatarDataHora(
-                      selectedInspecao.data,
-                      selectedInspecao.hora,
-                    )}
-                  </p>
-                </div>
-
-                <div className="space-y-1 rounded-lg border border-border/60 bg-muted/20 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Status
-                  </p>
-                  <div className="mt-1">
-                    <Badge
-                      className={cn(
-                        "inline-flex gap-1",
-                        getStatusConfig(selectedInspecao.status).color,
-                      )}
-                    >
-                      {getStatusConfig(selectedInspecao.status).label}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-
-              {selectedInspecao.descricaoArtigos && (
-                <div className="space-y-1 rounded-lg border border-border/60 bg-muted/20 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Descrição de Artigos
-                  </p>
-                  <p className="text-sm text-foreground">
-                    {selectedInspecao.descricaoArtigos}
-                  </p>
-                </div>
-              )}
-
-              {selectedInspecao.observacoes && (
-                <div className="space-y-1 rounded-lg border border-border/60 bg-muted/20 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Observações
-                  </p>
-                  <p className="text-sm text-foreground">
-                    {selectedInspecao.observacoes}
-                  </p>
-                </div>
-              )}
-
-              <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Laudo técnico
-                  </p>
-                </div>
-                <p className="text-sm text-foreground">
-                  {selectedInspecao.laudo ||
-                    "Laudo ainda não anexado para esta vistoria."}
-                </p>
-              </div>
-
-              <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Laudo em PDF
+            <div className="space-y-5">
+              {/* ── Banner: Alerta IA ── */}
+              {selectedInspecao.alertas && (
+                <div className="flex gap-3 rounded-r-xl border-l-4 border-yellow-500 bg-yellow-50 p-4 dark:bg-yellow-900/20">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-yellow-600 dark:text-yellow-400" />
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-yellow-700 dark:text-yellow-400">
+                      Alerta da IA
+                    </p>
+                    <p className="mt-0.5 text-sm text-yellow-800 dark:text-yellow-200">
+                      {selectedInspecao.alertas}
                     </p>
                   </div>
-                  {selectedInspecao.pdfLaudoUrl && (
-                    <Button
-                      asChild
-                      size="sm"
-                      variant="outline"
-                      className="gap-2"
-                    >
-                      <a
-                        href={selectedInspecao.pdfLaudoUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Abrir PDF
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    </Button>
+                </div>
+              )}
+
+              {/* ── Banner: Motivo de Rejeição ── */}
+              {selectedInspecao.status === "REJEITADA" &&
+                selectedInspecao.motivoRejeicao && (
+                  <div className="flex gap-3 rounded-r-xl border-l-4 border-red-500 bg-red-50 p-4 dark:bg-red-900/20">
+                    <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-red-700 dark:text-red-400">
+                        Motivo de Rejeição
+                      </p>
+                      <p className="mt-0.5 text-sm text-red-800 dark:text-red-200">
+                        {selectedInspecao.motivoRejeicao}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+              {/* ── Info grid ── */}
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {[
+                  {
+                    label: "Veículo",
+                    value: selectedInspecao.veiculo,
+                    sub: selectedInspecao.placa,
+                  },
+                  { label: "Cliente", value: selectedInspecao.cliente },
+                  {
+                    label: "Credenciado",
+                    value: selectedInspecao.credenciado || "Aguardando vínculo",
+                  },
+                  ...(selectedInspecao.local
+                    ? [{ label: "Local", value: selectedInspecao.local }]
+                    : []),
+                  ...(selectedInspecao.data && selectedInspecao.hora
+                    ? [
+                        {
+                          label: "Data e Hora",
+                          value: formatarDataHora(
+                            selectedInspecao.data,
+                            selectedInspecao.hora,
+                          ),
+                        },
+                      ]
+                    : []),
+                  ...(selectedInspecao.descricaoArtigos
+                    ? [
+                        {
+                          label: "Descrição de Artigos",
+                          value: selectedInspecao.descricaoArtigos,
+                        },
+                      ]
+                    : []),
+                  ...(selectedInspecao.observacoes
+                    ? [
+                        {
+                          label: "Observações",
+                          value: selectedInspecao.observacoes,
+                        },
+                      ]
+                    : []),
+                ].map(({ label, value, sub }) => (
+                  <div
+                    key={label}
+                    className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800/50"
+                  >
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                      {label}
+                    </p>
+                    <p className="text-sm font-medium text-foreground">
+                      {value}
+                    </p>
+                    {sub && (
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {sub}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* ── Accordion: Laudo da Vistoria ── */}
+              {selectedInspecao.laudo && (
+                <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-slate-50 shadow-sm dark:border-slate-700 dark:bg-slate-800/40">
+                  <button
+                    onClick={() =>
+                      setAccordionState((prev) => ({
+                        ...prev,
+                        laudo: !prev.laudo,
+                      }))
+                    }
+                    className="w-full flex items-center justify-between px-5 py-4 transition-all duration-200 ease-in-out cursor-pointer hover:bg-white hover:shadow-md dark:hover:bg-slate-800"
+                  >
+                    <div className="flex items-center gap-3">
+                      <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      <p className="text-[13px] font-bold uppercase tracking-widest text-slate-700 dark:text-slate-300">
+                        Laudo da Vistoria
+                      </p>
+                    </div>
+                    <ChevronDown
+                      className={cn(
+                        "h-5 w-5 text-slate-400 transition-transform duration-200",
+                        accordionState.laudo && "rotate-180",
+                      )}
+                    />
+                  </button>
+                  {accordionState.laudo && (
+                    <div className="border-t border-border/40 px-4 py-3">
+                      <p className="text-sm leading-relaxed text-foreground">
+                        {selectedInspecao.laudo}
+                      </p>
+                    </div>
                   )}
                 </div>
+              )}
 
-                <p className="text-sm text-muted-foreground">
-                  {selectedInspecao.pdfLaudoUrl
-                    ? "Clique em 'Abrir PDF' para visualizar o documento."
-                    : "PDF não disponível."}
-                </p>
-              </div>
-
-              <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3">
-                <div className="flex items-center gap-2">
-                  <FileAudio className="h-4 w-4 text-muted-foreground" />
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Áudios e transcrições
-                  </p>
-                </div>
-
-                {selectedInspecao.audios?.length ? (
-                  selectedInspecao.audios.map((audio) => (
-                    <div
-                      key={audio.id}
-                      className="space-y-2 rounded-md border border-border/60 bg-background p-3"
+              {/* ── Accordion: Histórico da Inspeção ── */}
+              {selectedInspecao.chatmessages &&
+                selectedInspecao.chatmessages.length > 0 && (
+                  <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-slate-50 shadow-sm dark:border-slate-700 dark:bg-slate-800/40">
+                    <button
+                      onClick={() =>
+                        setAccordionState((prev) => ({
+                          ...prev,
+                          chat: !prev.chat,
+                        }))
+                      }
+                      className="w-full flex items-center justify-between px-5 py-4 transition-all duration-200 ease-in-out cursor-pointer hover:bg-white hover:shadow-md dark:hover:bg-slate-800"
                     >
-                      <p className="text-sm font-medium">{audio.nome}</p>
-                      <audio controls className="w-full">
-                        <source src={audio.url} type="audio/mpeg" />
-                        Seu navegador não suporta reprodução de áudio.
-                      </audio>
-                      <div className="space-y-1">
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Transcrição
-                        </p>
-                        <p className="text-sm text-foreground">
-                          {audio.transcricao}
+                      <div className="flex items-center gap-3">
+                        <MessageSquare className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        <p className="text-[13px] font-bold uppercase tracking-widest text-slate-700 dark:text-slate-300">
+                          Histórico da Inspeção
                         </p>
                       </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Nenhum áudio anexado.
-                  </p>
-                )}
-              </div>
+                      <ChevronDown
+                        className={cn(
+                          "h-5 w-5 text-slate-400 transition-transform duration-200",
+                          accordionState.chat && "rotate-180",
+                        )}
+                      />
+                    </button>
+                    {accordionState.chat && (
+                      <div className="border-t border-border/40 px-4 py-3 flex flex-col gap-3 max-h-96 overflow-y-auto">
+                        {/* Chat messages display - two-sided conversation */}
+                        <div className="space-y-3">
+                          {chatMessages && chatMessages.length > 0 ? (
+                            chatMessages.map((msg) => {
+                              const isAi = msg.role === "ai";
+                              const isPhoto = msg.role === "photo";
 
-              <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3">
-                <div className="flex items-center gap-2">
-                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Imagens
-                  </p>
-                </div>
+                              return (
+                                <div
+                                  key={msg.id}
+                                  className={cn(
+                                    "flex gap-2",
+                                    isAi || isPhoto
+                                      ? "justify-start"
+                                      : "justify-end",
+                                  )}
+                                >
+                                  {(isAi || isPhoto) && (
+                                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/40">
+                                      <Bot className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                    </div>
+                                  )}
 
-                {selectedInspecao.imagens?.length ? (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {selectedInspecao.imagens.map((imagem) => (
-                      <a
-                        key={imagem.id}
-                        href={imagem.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="group overflow-hidden rounded-md border border-border/60 bg-background"
-                      >
-                        <img
-                          src={imagem.url}
-                          alt={imagem.nome}
-                          className="h-36 w-full object-cover transition-transform group-hover:scale-[1.02]"
-                        />
-                        <div className="px-3 py-2 text-xs text-muted-foreground">
-                          {imagem.nome}
+                                  <div
+                                    className={cn(
+                                      "max-w-[75%] rounded-2xl px-4 py-2.5 text-sm",
+                                      isAi
+                                        ? "rounded-tl-sm bg-blue-100 text-blue-900 dark:bg-blue-900/30 dark:text-blue-100"
+                                        : isPhoto
+                                          ? "rounded-tl-sm bg-indigo-100 text-indigo-900 dark:bg-indigo-900/30 dark:text-indigo-100"
+                                          : "rounded-tr-sm bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100",
+                                    )}
+                                  >
+                                    <p className="leading-relaxed whitespace-pre-wrap">
+                                      {msg.text}
+                                    </p>
+                                    {msg.createdAt && (
+                                      <p className="mt-1 text-[10px] opacity-55">
+                                        {new Date(msg.createdAt).toLocaleString(
+                                          "pt-BR",
+                                        )}
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  {!isAi && !isPhoto && (
+                                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-300 dark:bg-slate-600">
+                                      <User className="h-4 w-4 text-slate-700 dark:text-slate-300" />
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <p className="text-xs text-muted-foreground text-center py-4">
+                              Nenhuma mensagem encontrada
+                            </p>
+                          )}
                         </div>
-                      </a>
-                    ))}
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Nenhuma imagem anexada.
-                  </p>
+                )}
+
+              {/* ── Accordion: Imagens Fotográficas ── */}
+              {selectedInspecao.images &&
+                selectedInspecao.images.length > 0 && (
+                  <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-slate-50 shadow-sm dark:border-slate-700 dark:bg-slate-800/40">
+                    <button
+                      onClick={() =>
+                        setAccordionState((prev) => ({
+                          ...prev,
+                          imagens: !prev.imagens,
+                        }))
+                      }
+                      className="w-full flex items-center justify-between px-5 py-4 transition-all duration-200 ease-in-out cursor-pointer hover:bg-white hover:shadow-md dark:hover:bg-slate-800"
+                    >
+                      <div className="flex items-center gap-3">
+                        <ImageIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        <p className="text-[13px] font-bold uppercase tracking-widest text-slate-700 dark:text-slate-300">
+                          Imagens Fotográficas
+                        </p>
+                      </div>
+                      <ChevronDown
+                        className={cn(
+                          "h-5 w-5 text-slate-400 transition-transform duration-200",
+                          accordionState.imagens && "rotate-180",
+                        )}
+                      />
+                    </button>
+                    {accordionState.imagens && (
+                      <div className="border-t border-border/40 px-4 py-3">
+                        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+                          {selectedInspecao.images.map((image) => {
+                            const b64 = image.vistoria_1 || image.vistoria_2;
+                            if (!b64) return null;
+                            const src = `data:${image.contentType};base64,${b64}`;
+
+                            return (
+                              <div
+                                key={image.id}
+                                className="group overflow-hidden rounded-lg shadow-sm"
+                              >
+                                <img
+                                  src={src}
+                                  alt={image.fileName || image.id}
+                                  className="h-36 w-full rounded-lg object-cover shadow-sm transition-all hover:scale-[1.02]"
+                                />
+                                {image.fileName && (
+                                  <p className="mt-1 truncate px-0.5 text-xs text-muted-foreground">
+                                    {image.fileName}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              {/* ── Accordion: Áudios e Transcrições ── */}
+              {selectedInspecao.audios &&
+                selectedInspecao.audios.length > 0 && (
+                  <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-slate-50 shadow-sm dark:border-slate-700 dark:bg-slate-800/40">
+                    <button
+                      onClick={() =>
+                        setAccordionState((prev) => ({
+                          ...prev,
+                          audios: !prev.audios,
+                        }))
+                      }
+                      className="w-full flex items-center justify-between px-5 py-4 transition-all duration-200 ease-in-out cursor-pointer hover:bg-white hover:shadow-md dark:hover:bg-slate-800"
+                    >
+                      <div className="flex items-center gap-3">
+                        <FileAudio className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        <p className="text-[13px] font-bold uppercase tracking-widest text-slate-700 dark:text-slate-300">
+                          Áudios e Transcrições
+                        </p>
+                      </div>
+                      <ChevronDown
+                        className={cn(
+                          "h-5 w-5 text-slate-400 transition-transform duration-200",
+                          accordionState.audios && "rotate-180",
+                        )}
+                      />
+                    </button>
+                    {accordionState.audios && (
+                      <div className="border-t border-border/40 px-4 py-3">
+                        <div className="flex flex-col gap-3">
+                          {selectedInspecao.audios.map((audio) => {
+                            const b64 = audio.vistoria_1;
+                            const audioSrc = b64
+                              ? `data:${audio.contentType};base64,${b64}`
+                              : (audio.url ?? null);
+
+                            if (!audioSrc) return null;
+
+                            return (
+                              <div
+                                key={audio.id}
+                                className="rounded-xl border border-border/60 bg-background p-4 shadow-sm"
+                              >
+                                <div className="mb-2 flex items-center justify-between gap-2">
+                                  <span className="text-sm font-semibold text-foreground">
+                                    {audio.fileName || audio.nome || audio.id}
+                                  </span>
+                                  {audio.createdAt && (
+                                    <span className="text-[10px] text-muted-foreground">
+                                      {new Date(audio.createdAt).toLocaleString(
+                                        "pt-BR",
+                                      )}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <audio
+                                  controls
+                                  src={audioSrc}
+                                  className="w-full"
+                                />
+
+                                {audio.transcricao && (
+                                  <div className="mt-3 rounded-lg bg-muted/40 px-3 py-2">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                                      Transcrição
+                                    </p>
+                                    <p className="mt-1 text-sm italic leading-relaxed text-foreground">
+                                      “{audio.transcricao}”
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              {/* ── Rodapé: Ações por Status ── */}
+              <div className="flex items-center justify-end border-t border-border/60 pt-4">
+                {(selectedInspecao.status === "FINALIZADA" ||
+                  selectedInspecao.status === "REJEITADA") &&
+                  selectedInspecao.pdfLaudoUrl && (
+                    <a
+                      href={selectedInspecao.pdfLaudoUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+                    >
+                      <Download className="h-4 w-4" />
+                      Baixar Laudo PDF
+                    </a>
+                  )}
+                {selectedInspecao.status === "EM_ANALISE_OPERACIONAL" && (
+                  <div className="flex items-center gap-3">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      <XCircle className="h-4 w-4" />
+                      Rejeitar
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      <Check className="h-4 w-4" />
+                      Aprovar
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog - Criar Nova Vistoria */}
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Vincular Vistoria</DialogTitle>
-            <DialogDescription>
-              Vincule um sinistro aberto com um credenciado
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleCreateVistoria} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="sinistroId">Sinistro *</Label>
-              <Select
-                value={formData.sinistroId}
-                onValueChange={(value) =>
-                  setFormData((prev) => ({ ...prev, sinistroId: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um sinistro" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sinistrosDisponiveis
-                    .filter(
-                      (s) => !inspecoes.some((i) => i.sinistroId === s.id),
-                    )
-                    .map((sinistro) => (
-                      <SelectItem key={sinistro.id} value={sinistro.id}>
-                        {sinistro.id} - {sinistro.veiculo} ({sinistro.placa})
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="credenciado">Credenciado *</Label>
-              <Select
-                value={formData.credenciado}
-                onValueChange={(value) =>
-                  setFormData((prev) => ({ ...prev, credenciado: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um credenciado" />
-                </SelectTrigger>
-                <SelectContent>
-                  {credenciadosDisponiveis.map((credenciado) => (
-                    <SelectItem key={credenciado} value={credenciado}>
-                      {credenciado}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    status: value as "agendada" | "realizada" | "pendente",
-                  }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pendente">Pendente</SelectItem>
-                  <SelectItem value="agendada">Agendada</SelectItem>
-                  <SelectItem value="realizada">Realizada</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsCreateOpen(false)}
-              >
-                Cancelar
-              </Button>
-              <Button type="submit">Vincular</Button>
-            </DialogFooter>
-          </form>
         </DialogContent>
       </Dialog>
     </AppLayout>
