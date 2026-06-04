@@ -13,6 +13,11 @@ export async function requireAuth(request: Request): Promise<string> {
     throw new AuthError("Token não fornecido.");
   }
   const token = header.slice(7);
-  const decoded = await getAdminAuth().verifyIdToken(token);
-  return decoded.uid;
+  try {
+    const decoded = await getAdminAuth().verifyIdToken(token);
+    return decoded.uid;
+  } catch (error) {
+    console.error("[requireAuth] verifyIdToken falhou:", error);
+    throw error;
+  }
 }

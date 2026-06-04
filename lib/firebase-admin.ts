@@ -26,9 +26,11 @@ function getAdminApp(): App {
     );
   }
 
-  // A chave privada chega com \\n literais quando configurada em painel de hosting;
-  // replace garante quebras de linha reais independente do ambiente.
-  const privateKey = rawKey.replace(/\\n/g, "\n");
+  // Strips surrounding quotes and trailing comma that some env loaders include,
+  // then converts literal \n sequences to real newlines.
+  const privateKey = rawKey
+    .replace(/^["']|["'],?$/g, "")
+    .replace(/\\n/g, "\n");
 
   return initializeApp({
     credential: cert({ projectId, clientEmail, privateKey }),
