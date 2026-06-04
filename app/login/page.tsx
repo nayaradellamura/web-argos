@@ -48,7 +48,7 @@ export default function LoginPage() {
       case "auth/user-not-found":
         return "Nenhuma conta encontrada com este e-mail.";
       default:
-        return "Não foi possível entrar agora. Tente novamente.";
+        return `Erro ao entrar (${err.code}). Tente novamente.`;
     }
   };
 
@@ -80,8 +80,9 @@ export default function LoginPage() {
     try {
       await loginWithGoogle();
       router.push("/dashboard");
-    } catch {
-      setError("Não foi possível entrar com Google.");
+    } catch (err) {
+      const code = err instanceof FirebaseError ? err.code : String(err);
+      setError(`Erro Google (${code}). Verifique se o domínio está autorizado no Firebase.`);
     } finally {
       setLoading(false);
     }
