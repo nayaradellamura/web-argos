@@ -181,3 +181,34 @@
 [debug] [2026-06-04T20:38:43.601Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:106941102363:web:eac7e3d1f05dea07207bbe/config [none]
 [debug] [2026-06-04T20:38:45.032Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:106941102363:web:eac7e3d1f05dea07207bbe/config 200
 [debug] [2026-06-04T20:38:45.033Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:106941102363:web:eac7e3d1f05dea07207bbe/config {"projectId":"fho-argos","appId":"1:106941102363:web:eac7e3d1f05dea07207bbe","storageBucket":"fho-argos.firebasestorage.app","apiKey":"AIzaSyD1Nk8gWZrycpfh7XxJpjEQBkSJS-_wApM","authDomain":"fho-argos.firebaseapp.com","messagingSenderId":"106941102363","projectNumber":"106941102363","version":"2"}
+[info] 
+   Thank you for trying our early preview of Next.js support on Firebase Hosting.
+   During the preview, support is best-effort and breaking changes can be expected. Proceed with caution.
+   The integration is known to work with Next.js version 12 - 16.0. You may encounter errors.
+
+   Documentation: https://firebase.google.com/docs/hosting/frameworks/nextjs
+   File a bug: https://github.com/firebase/firebase-tools/issues/new?template=bug_report.md
+   Submit a feature request: https://github.com/firebase/firebase-tools/issues/new?template=feature_request.md
+
+   We'd love to learn from you. Express your interest in helping us shape the future of Firebase Hosting: https://goo.gle/41enW5X
+
+[debug] [2026-06-04T20:38:55.032Z] Checked if tokens are valid: true, expires at: 1780608716385
+[debug] [2026-06-04T20:38:55.032Z] Checked if tokens are valid: true, expires at: 1780608716385
+[debug] [2026-06-04T20:38:55.032Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/fho-argos/sites/fho-argos [none]
+[debug] [2026-06-04T20:38:56.363Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/fho-argos/sites/fho-argos 200
+[debug] [2026-06-04T20:38:56.364Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/fho-argos/sites/fho-argos {"name":"projects/fho-argos/sites/fho-argos","defaultUrl":"https://fho-argos.web.app","appId":"1:106941102363:web:eac7e3d1f05dea07207bbe","type":"DEFAULT_SITE"}
+[info] ▲ Next.js 16.2.0 (Turbopack)
+
+[info] - Environments: .env.local, .env.production
+
+
+[info]   Creating an optimized production build ...
+
+[info] ✓ Compiled successfully in 26.3s
+
+[info]   Skipping validation of types
+
+[info]   Finished TypeScript config validation in 22ms ...
+
+[info]   Collecting page data using 7 workers ...
+
