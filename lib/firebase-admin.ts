@@ -11,24 +11,27 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 
-// Importa o JSON diretamente (ajuste o caminho se o JSON estiver em outra pasta)
-// Assumindo que o JSON está na raiz do projeto (uma pasta para trás da lib)
-import serviceAccount from "../firebase-credentials.json";
-
 function getAdminApp(): App {
   if (getApps().length > 0) {
     return getApp();
   }
 
-  // O REPLACE mágico que garante que as quebras de linha sejam interpretadas corretamente
-  const privateKey = serviceAccount.private_key.replace(/\\n/g, "\n");
+  const projectId  = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const rawKey     = process.env.FIREBASE_PRIVATE_KEY;
+
+  if (!projectId || !clientEmail || !rawKey) {
+    throw new Error(
+      "Variáveis de ambiente FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL e FIREBASE_PRIVATE_KEY são obrigatórias.",
+    );
+  }
+
+  // A chave privada chega com \\n literais quando configurada em painel de hosting;
+  // replace garante quebras de linha reais independente do ambiente.
+  const privateKey = rawKey.replace(/\\n/g, "\n");
 
   return initializeApp({
-    credential: cert({
-      projectId: serviceAccount.project_id,
-      clientEmail: serviceAccount.client_email,
-      privateKey: privateKey,
-    }),
+    credential: cert({ projectId, clientEmail, privateKey }),
   });
 }
 
