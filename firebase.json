@@ -7,7 +7,11 @@
       "**/node_modules/**"
     ],
     "frameworksBackend": {
-      "region": "southamerica-east1"
+      "region": "southamerica-east1",
+      "secrets": [
+        "FIREBASE_CLIENT_EMAIL",
+        "FIREBASE_PRIVATE_KEY"
+      ]
     }
   },
   "apphosting": {

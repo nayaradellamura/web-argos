@@ -16,7 +16,11 @@ function getAdminApp(): App {
     return getApp();
   }
 
-  const projectId  = process.env.FIREBASE_PROJECT_ID;
+  // GCLOUD_PROJECT / GOOGLE_CLOUD_PROJECT are set automatically in Cloud Functions/Cloud Run
+  const projectId =
+    process.env.FIREBASE_PROJECT_ID ||
+    process.env.GCLOUD_PROJECT ||
+    process.env.GOOGLE_CLOUD_PROJECT;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const rawKey     = process.env.FIREBASE_PRIVATE_KEY;
 
