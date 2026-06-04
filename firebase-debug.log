@@ -1,0 +1,183 @@
+[debug] [2026-06-04T20:31:56.388Z] ----------------------------------------------------------------------
+[debug] [2026-06-04T20:31:56.390Z] Command:       /home/engenharia/node_modules/node/bin/node /home/engenharia/.npm/_npx/ba4f1959e38407b5/node_modules/.bin/firebase deploy --only hosting
+[debug] [2026-06-04T20:31:56.390Z] CLI Version:   15.19.1
+[debug] [2026-06-04T20:31:56.390Z] Platform:      linux
+[debug] [2026-06-04T20:31:56.390Z] Node Version:  v25.9.0
+[debug] [2026-06-04T20:31:56.390Z] Time:          Thu Jun 04 2026 17:31:56 GMT-0300 (Horário Padrão de Brasília)
+[debug] [2026-06-04T20:31:56.390Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-06-04T20:31:57.199Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-06-04T20:31:57.199Z] > authorizing via signed-in user (nayaradellamura@alunos.fho.edu.br)
+[debug] [2026-06-04T20:31:57.199Z] [iam] checking project fho-argos for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2026-06-04T20:31:57.200Z] Checked if tokens are valid: false, expires at: 1780604253766
+[debug] [2026-06-04T20:31:57.200Z] Checked if tokens are valid: false, expires at: 1780604253766
+[debug] [2026-06-04T20:31:57.200Z] > refreshing access token with scopes: []
+[debug] [2026-06-04T20:31:57.201Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-06-04T20:31:57.201Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-06-04T20:31:57.384Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-06-04T20:31:57.385Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-06-04T20:31:57.688Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/fho-argos:testIamPermissions [none]
+[debug] [2026-06-04T20:31:57.688Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/fho-argos:testIamPermissions  x-goog-user-project=fho-argos
+[debug] [2026-06-04T20:31:57.688Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/fho-argos:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-06-04T20:31:58.639Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/fho-argos:testIamPermissions 200
+[debug] [2026-06-04T20:31:58.639Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/fho-argos:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-06-04T20:31:58.640Z] Checked if tokens are valid: true, expires at: 1780608716385
+[debug] [2026-06-04T20:31:58.640Z] Checked if tokens are valid: true, expires at: 1780608716385
+[debug] [2026-06-04T20:31:58.640Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/fho-argos [none]
+[debug] [2026-06-04T20:31:59.119Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/fho-argos 200
+[debug] [2026-06-04T20:31:59.119Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/fho-argos {"projectId":"fho-argos","projectNumber":"106941102363","displayName":"fho-argos","name":"projects/fho-argos","resources":{"hostingSite":"fho-argos"},"state":"ACTIVE","etag":"1_b9d5f067-c2cd-42a4-bd45-20239b147a34"}
+[debug] [2026-06-04T20:32:01.718Z] defaultcredentials: writing to file /home/engenharia/.config/firebase/nayaradellamura_alunos_fho.edu.br_application_default_credentials.json
+[debug] [2026-06-04T20:32:01.718Z] Checked if tokens are valid: true, expires at: 1780608716385
+[debug] [2026-06-04T20:32:01.718Z] Checked if tokens are valid: true, expires at: 1780608716385
+[debug] [2026-06-04T20:32:01.719Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/fho-argos/sites pageToken=&pageSize=10
+[debug] [2026-06-04T20:32:03.179Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/fho-argos/sites 200
+[debug] [2026-06-04T20:32:03.179Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/fho-argos/sites {"sites":[{"name":"projects/fho-argos/sites/fho-argos","defaultUrl":"https://fho-argos.web.app","appId":"1:106941102363:web:eac7e3d1f05dea07207bbe","type":"DEFAULT_SITE"}]}
+[debug] [2026-06-04T20:32:03.179Z] Checked if tokens are valid: true, expires at: 1780608716385
+[debug] [2026-06-04T20:32:03.179Z] Checked if tokens are valid: true, expires at: 1780608716385
+[debug] [2026-06-04T20:32:03.180Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:106941102363:web:eac7e3d1f05dea07207bbe/config [none]
+[debug] [2026-06-04T20:32:04.648Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:106941102363:web:eac7e3d1f05dea07207bbe/config 200
+[debug] [2026-06-04T20:32:04.648Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:106941102363:web:eac7e3d1f05dea07207bbe/config {"projectId":"fho-argos","appId":"1:106941102363:web:eac7e3d1f05dea07207bbe","storageBucket":"fho-argos.firebasestorage.app","apiKey":"AIzaSyD1Nk8gWZrycpfh7XxJpjEQBkSJS-_wApM","authDomain":"fho-argos.firebaseapp.com","messagingSenderId":"106941102363","projectNumber":"106941102363","version":"2"}
+[info] 
+   Thank you for trying our early preview of Next.js support on Firebase Hosting.
+   During the preview, support is best-effort and breaking changes can be expected. Proceed with caution.
+   The integration is known to work with Next.js version 12 - 16.0. You may encounter errors.
+
+   Documentation: https://firebase.google.com/docs/hosting/frameworks/nextjs
+   File a bug: https://github.com/firebase/firebase-tools/issues/new?template=bug_report.md
+   Submit a feature request: https://github.com/firebase/firebase-tools/issues/new?template=feature_request.md
+
+   We'd love to learn from you. Express your interest in helping us shape the future of Firebase Hosting: https://goo.gle/41enW5X
+
+[debug] [2026-06-04T20:32:09.209Z] Checked if tokens are valid: true, expires at: 1780608716385
+[debug] [2026-06-04T20:32:09.210Z] Checked if tokens are valid: true, expires at: 1780608716385
+[debug] [2026-06-04T20:32:09.210Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/fho-argos/sites/fho-argos [none]
+[debug] [2026-06-04T20:32:10.479Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/fho-argos/sites/fho-argos 200
+[debug] [2026-06-04T20:32:10.479Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/fho-argos/sites/fho-argos {"name":"projects/fho-argos/sites/fho-argos","defaultUrl":"https://fho-argos.web.app","appId":"1:106941102363:web:eac7e3d1f05dea07207bbe","type":"DEFAULT_SITE"}
+[info] ▲ Next.js 16.2.0 (Turbopack)
+
+[info] - Environments: .env.local, .env.production
+
+
+[info]   Creating an optimized production build ...
+
+[info] ✓ Compiled successfully in 6.8s
+
+[info]   Skipping validation of types
+
+[info]   Finished TypeScript config validation in 7ms ...
+
+[info]   Collecting page data using 7 workers ...
+
+[info]   Generating static pages using 7 workers (0/21) ...
+
+[info]   Generating static pages using 7 workers (5/21) 
+
+[info]   Generating static pages using 7 workers (10/21) 
+
+[info]   Generating static pages using 7 workers (15/21) 
+
+[info] ✓ Generating static pages using 7 workers (21/21) in 426ms
+
+[info]   Finalizing page optimization ...
+
+[info] 
+
+[info] Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /alertas
+├ ƒ /api/clientes
+├ ƒ /api/clientes/[id]
+├ ƒ /api/dashboard
+├ ƒ /api/oficinas
+├ ƒ /api/oficinas/[id]
+├ ƒ /api/oficinas/[id]/sinistros
+├ ƒ /api/parceiros/aprovar-email
+├ ƒ /api/seguradoras
+├ ƒ /api/sinistros
+├ ƒ /api/sinistros/[id]
+├ ƒ /api/sinistros/[id]/alertas
+├ ƒ /api/sinistros/[id]/checkin
+├ ƒ /api/sinistros/[id]/finalizar
+├ ƒ /api/sinistros/[id]/rejeitar
+├ ƒ /api/sinistros/[id]/stage
+├ ƒ /api/sinistros/[id]/vincular
+├ ƒ /api/sinistros/[id]/vistorias
+├ ƒ /api/veiculos
+├ ƒ /api/veiculos/[id]
+├ ƒ /api/vistorias
+├ ƒ /api/vistorias/[id]
+├ ○ /configuracoes
+├ ○ /dashboard
+├ ○ /login
+├ ○ /logout
+├ ○ /orquestracao
+├ ○ /perfil
+├ ○ /rede-credenciada
+├ ○ /registros
+└ ○ /vistoria
+
+
+[info] 
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+[info] Building a Cloud Function to run this application. This is needed due to:
+[info]  • non-static component /api/clientes/[id]/route
+[info]  • non-static component /api/clientes/route
+[info]  • non-static component /api/dashboard/route
+[info]  • non-static component /api/oficinas/[id]/route
+[info]  • non-static component /api/oficinas/[id]/sinistros/route
+[debug] [2026-06-04T20:32:22.003Z]  • non-static component /api/oficinas/route
+[debug] [2026-06-04T20:32:22.003Z]  • non-static component /api/parceiros/aprovar-email/route
+[debug] [2026-06-04T20:32:22.003Z]  • non-static component /api/seguradoras/route
+[debug] [2026-06-04T20:32:22.003Z]  • non-static component /api/sinistros/[id]/alertas/route
+[debug] [2026-06-04T20:32:22.003Z]  • non-static component /api/sinistros/[id]/checkin/route
+[debug] [2026-06-04T20:32:22.003Z]  • non-static component /api/sinistros/[id]/finalizar/route
+[debug] [2026-06-04T20:32:22.003Z]  • non-static component /api/sinistros/[id]/rejeitar/route
+[debug] [2026-06-04T20:32:22.003Z]  • non-static component /api/sinistros/[id]/route
+[debug] [2026-06-04T20:32:22.003Z]  • non-static component /api/sinistros/[id]/stage/route
+[debug] [2026-06-04T20:32:22.003Z]  • non-static component /api/sinistros/[id]/vincular/route
+[debug] [2026-06-04T20:32:22.003Z]  • non-static component /api/sinistros/[id]/vistorias/route
+[debug] [2026-06-04T20:32:22.003Z]  • non-static component /api/sinistros/route
+[debug] [2026-06-04T20:32:22.003Z]  • non-static component /api/veiculos/[id]/route
+[debug] [2026-06-04T20:32:22.003Z]  • non-static component /api/veiculos/route
+[debug] [2026-06-04T20:32:22.003Z]  • non-static component /api/vistorias/[id]/route
+[debug] [2026-06-04T20:32:22.003Z]  • non-static component /api/vistorias/route
+[info]  • and 16 other reasons, use --debug to see more
+[info] 
+[debug] [2026-06-04T20:38:37.848Z] ----------------------------------------------------------------------
+[debug] [2026-06-04T20:38:37.850Z] Command:       /home/engenharia/node_modules/node/bin/node /home/engenharia/.npm/_npx/ba4f1959e38407b5/node_modules/.bin/firebase deploy --only hosting
+[debug] [2026-06-04T20:38:37.850Z] CLI Version:   15.19.1
+[debug] [2026-06-04T20:38:37.850Z] Platform:      linux
+[debug] [2026-06-04T20:38:37.850Z] Node Version:  v25.9.0
+[debug] [2026-06-04T20:38:37.850Z] Time:          Thu Jun 04 2026 17:38:37 GMT-0300 (Horário Padrão de Brasília)
+[debug] [2026-06-04T20:38:37.850Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-06-04T20:38:38.485Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-06-04T20:38:38.486Z] > authorizing via signed-in user (nayaradellamura@alunos.fho.edu.br)
+[debug] [2026-06-04T20:38:38.486Z] [iam] checking project fho-argos for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2026-06-04T20:38:38.486Z] Checked if tokens are valid: true, expires at: 1780608716385
+[debug] [2026-06-04T20:38:38.486Z] Checked if tokens are valid: true, expires at: 1780608716385
+[debug] [2026-06-04T20:38:38.487Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/fho-argos:testIamPermissions [none]
+[debug] [2026-06-04T20:38:38.487Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/fho-argos:testIamPermissions  x-goog-user-project=fho-argos
+[debug] [2026-06-04T20:38:38.487Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/fho-argos:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-06-04T20:38:39.513Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/fho-argos:testIamPermissions 200
+[debug] [2026-06-04T20:38:39.514Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/fho-argos:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-06-04T20:38:39.515Z] Checked if tokens are valid: true, expires at: 1780608716385
+[debug] [2026-06-04T20:38:39.515Z] Checked if tokens are valid: true, expires at: 1780608716385
+[debug] [2026-06-04T20:38:39.516Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/fho-argos [none]
+[debug] [2026-06-04T20:38:40.011Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/fho-argos 200
+[debug] [2026-06-04T20:38:40.011Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/fho-argos {"projectId":"fho-argos","projectNumber":"106941102363","displayName":"fho-argos","name":"projects/fho-argos","resources":{"hostingSite":"fho-argos"},"state":"ACTIVE","etag":"1_b9d5f067-c2cd-42a4-bd45-20239b147a34"}
+[debug] [2026-06-04T20:38:42.069Z] defaultcredentials: writing to file /home/engenharia/.config/firebase/nayaradellamura_alunos_fho.edu.br_application_default_credentials.json
+[debug] [2026-06-04T20:38:42.070Z] Checked if tokens are valid: true, expires at: 1780608716385
+[debug] [2026-06-04T20:38:42.070Z] Checked if tokens are valid: true, expires at: 1780608716385
+[debug] [2026-06-04T20:38:42.070Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/fho-argos/sites pageToken=&pageSize=10
+[debug] [2026-06-04T20:38:43.600Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/fho-argos/sites 200
+[debug] [2026-06-04T20:38:43.600Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/fho-argos/sites {"sites":[{"name":"projects/fho-argos/sites/fho-argos","defaultUrl":"https://fho-argos.web.app","appId":"1:106941102363:web:eac7e3d1f05dea07207bbe","type":"DEFAULT_SITE"}]}
+[debug] [2026-06-04T20:38:43.601Z] Checked if tokens are valid: true, expires at: 1780608716385
+[debug] [2026-06-04T20:38:43.601Z] Checked if tokens are valid: true, expires at: 1780608716385
+[debug] [2026-06-04T20:38:43.601Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:106941102363:web:eac7e3d1f05dea07207bbe/config [none]
+[debug] [2026-06-04T20:38:45.032Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:106941102363:web:eac7e3d1f05dea07207bbe/config 200
+[debug] [2026-06-04T20:38:45.033Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:106941102363:web:eac7e3d1f05dea07207bbe/config {"projectId":"fho-argos","appId":"1:106941102363:web:eac7e3d1f05dea07207bbe","storageBucket":"fho-argos.firebasestorage.app","apiKey":"AIzaSyD1Nk8gWZrycpfh7XxJpjEQBkSJS-_wApM","authDomain":"fho-argos.firebaseapp.com","messagingSenderId":"106941102363","projectNumber":"106941102363","version":"2"}
