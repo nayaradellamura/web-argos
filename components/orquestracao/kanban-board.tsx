@@ -1600,7 +1600,7 @@ export function KanbanBoard() {
       )}
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="max-w-4xl overflow-hidden">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-2xl font-bold text-foreground">
               <FilePlus className="h-6 w-6 text-blue-700 dark:text-blue-400" />
@@ -2018,7 +2018,7 @@ export function KanbanBoard() {
         open={detailsModal.open}
         onOpenChange={(open) => !open && closeDetailsModal()}
       >
-        <DialogContent className="max-h-[85vh] max-w-4xl overflow-hidden">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Detalhes do Sinistro</DialogTitle>
             <DialogDescription>
@@ -2735,7 +2735,7 @@ export function KanbanBoard() {
         open={approvalModal.open}
         onOpenChange={(open) => !open && closeApprovalModal()}
       >
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Finalizar Vistoria</DialogTitle>
             <DialogDescription>

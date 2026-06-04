@@ -15,7 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
-import { login, loginWithGoogle } from "@/lib/services/auth";
+import { login, loginWithGoogle, resetPassword } from "@/lib/services/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,6 +24,8 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   const getLoginErrorMessage = (err: unknown) => {
     if (!(err instanceof FirebaseError)) {
@@ -39,11 +41,35 @@ export default function LoginPage() {
         return "Muitas tentativas. Aguarde alguns minutos e tente novamente.";
       case "auth/network-request-failed":
         return "Falha de conexão. Verifique sua internet.";
+      case "auth/wrong-password":
       case "auth/invalid-credential":
       case "auth/invalid-login-credentials":
-        return "E-mail ou senha incorretos, ou esta conta usa login com Google.";
+        return "Senha incorreta. Use 'Recuperar senha' caso não se lembre dela.";
+      case "auth/user-not-found":
+        return "Nenhuma conta encontrada com este e-mail.";
       default:
         return "Não foi possível entrar agora. Tente novamente.";
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!email.trim()) {
+      setError("Digite seu e-mail acima para recuperar a senha.");
+      return;
+    }
+    setResetLoading(true);
+    setError("");
+    try {
+      await resetPassword(email.trim());
+      setResetSent(true);
+    } catch (err) {
+      if (err instanceof FirebaseError && err.code === "auth/user-not-found") {
+        setError("Nenhuma conta encontrada com este e-mail.");
+      } else {
+        setError("Não foi possível enviar o e-mail de recuperação. Tente novamente.");
+      }
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -146,9 +172,28 @@ export default function LoginPage() {
                   </div>
                 </div>
 
+                {/* Link recuperar senha */}
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleResetPassword}
+                    disabled={resetLoading || loading}
+                    className="text-xs text-primary hover:underline disabled:opacity-50"
+                  >
+                    {resetLoading ? "Enviando..." : "Recuperar senha"}
+                  </button>
+                </div>
+
                 {/* Mensagem de erro */}
                 {error && (
                   <p className="text-sm font-medium text-red-500">{error}</p>
+                )}
+
+                {/* Confirmação de e-mail enviado */}
+                {resetSent && (
+                  <p className="text-sm font-medium text-emerald-600">
+                    E-mail de recuperação enviado! Verifique sua caixa de entrada.
+                  </p>
                 )}
 
                 <Button
