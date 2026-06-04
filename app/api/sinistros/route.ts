@@ -6,6 +6,7 @@ import type {
   QueryDocumentSnapshot,
 } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireAuth, AuthError } from "@/lib/auth-server";
 
 export const runtime = "nodejs";
 
@@ -134,7 +135,8 @@ function classifyKanbanColumn(
   if (!hasCheckIn(data)) return "aguardandoCheckin";
   if (vStatus === null) return "checkinRealizado";
   if (vStatus === "EM_ANALISE_OPERACIONAL") return "analiseOperacional";
-  if (vStatus === "EM_ANDAMENTO" || vStatus === "EM_ANALISE_IA") return "emVistoria";
+  if (vStatus === "CANCELADA") return "finalizados";
+  if (vStatus === "EM_ANDAMENTO") return "emVistoria";
   // REJEITADA ou FINALIZADA com sinistro ainda em andamento → emVistoria
   return "emVistoria";
 }
@@ -145,6 +147,7 @@ function mapKanbanCard(
   isRejected: boolean,
   hasHistoricoRejeicao: boolean,
   kanbanColumn: KanbanColumn,
+  latestVistoriaTipoVistoria: string | null = null,
 ) {
   const data = doc.data();
   const clienteSnap = data.clienteSnapshot as
@@ -173,6 +176,7 @@ function mapKanbanCard(
       (data.entryDate as string | undefined) ??
       null,
     latestVistoriaStatus,
+    tipoVistoria: latestVistoriaTipoVistoria,
     isRejected,
     hasHistoricoRejeicao,
     kanbanColumn,
@@ -198,6 +202,13 @@ function mapKanbanCard(
 
 export async function GET(request: Request) {
   try {
+    await requireAuth(request);
+  } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: (e as Error).message }, { status: 401 });
+    return NextResponse.json({ error: "Token inválido." }, { status: 401 });
+  }
+  try {
+
     const { searchParams } = new URL(request.url);
 
     const rawTipo = searchParams.get("tipo") ?? "geral";
@@ -247,6 +258,7 @@ export async function GET(request: Request) {
           .get();
 
         let latestStatus: string | null = null;
+        let latestTipoVistoria: string | null = null;
         let latestTs = 0;
         let everRejected = false;
 
@@ -256,6 +268,7 @@ export async function GET(request: Request) {
           if (ts > latestTs) {
             latestTs = ts;
             latestStatus = String(data.status ?? "").toUpperCase();
+            latestTipoVistoria = (data.tipoVistoria as string | undefined) ?? null;
           }
           if (String(data.status ?? "").toUpperCase() === "REJEITADA") {
             everRejected = true;
@@ -271,6 +284,7 @@ export async function GET(request: Request) {
             isRejected,
             everRejected,
             column,
+            latestTipoVistoria,
           ),
         );
 
@@ -284,6 +298,7 @@ export async function GET(request: Request) {
 
       // Vistoria mais recente e flag de rejeição por sinistro
       const latestStatus = new Map<string, string>();
+      const latestTipoVistoria = new Map<string, string | null>();
       const latestTs = new Map<string, number>();
       const everRejected = new Map<string, boolean>();
 
@@ -295,6 +310,7 @@ export async function GET(request: Request) {
         if (ts > (latestTs.get(sid) ?? 0)) {
           latestTs.set(sid, ts);
           latestStatus.set(sid, String(data.status ?? "").toUpperCase());
+          latestTipoVistoria.set(sid, (data.tipoVistoria as string | undefined) ?? null);
         }
         if (String(data.status ?? "").toUpperCase() === "REJEITADA") everRejected.set(sid, true);
       }
@@ -311,11 +327,12 @@ export async function GET(request: Request) {
 
       for (const doc of allSinistrosSnap.docs) {
         const vStatus = latestStatus.get(doc.id) ?? null;
+        const vTipo = latestTipoVistoria.get(doc.id) ?? null;
         const col = classifyKanbanColumn(doc.data(), vStatus);
         const isRej = vStatus === "REJEITADA";
         const hasHistorico = everRejected.get(doc.id) ?? false;
         columns[col].push(
-          mapKanbanCard(doc, vStatus, isRej, hasHistorico, col),
+          mapKanbanCard(doc, vStatus, isRej, hasHistorico, col, vTipo),
         );
       }
 
@@ -350,9 +367,9 @@ export async function GET(request: Request) {
 
     // ── REJEITADAS ────────────────────────────────────────────────────────────
     if (tipo === "rejeitadas") {
-      // Etapa 1: candidatos — sinistros com ao menos uma vistoria REJEITADA
+      // Etapa 1: candidatos — sinistros com ao menos uma vistoria REJEITADA (ambos os cases)
       const vistoriasRejSnap = await vistorias
-        .where("status", "==", "REJEITADA")
+        .where("status", "in", ["REJEITADA", "rejeitada"])
         .get();
 
       const candidateIds = [
@@ -426,9 +443,9 @@ export async function GET(request: Request) {
     }
 
     // ── ALERTAS IA ────────────────────────────────────────────────────────────
-    // tipo === "alertasIA": EM_ANDAMENTO + vistoria EM_ANALISE_OPERACIONAL + alerta ativo
+    // tipo === "alertasIA": vistoria EM_ANALISE_OPERACIONAL + alerta ativo
     const [vistoriasOpSnap, alertasSnap] = await Promise.all([
-      vistorias.where("status", "==", "EM_ANALISE_OPERACIONAL").get(),
+      vistorias.where("status", "in", ["EM_ANALISE_OPERACIONAL", "em_analise_operacional"]).get(),
       alertas.select("sinistroId").get(),
     ]);
 
@@ -477,6 +494,13 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    await requireAuth(request);
+  } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: (e as Error).message }, { status: 401 });
+    return NextResponse.json({ error: "Token inválido." }, { status: 401 });
+  }
+  try {
+
     const body = (await request.json()) as Record<string, unknown>;
     const {
       clienteId,

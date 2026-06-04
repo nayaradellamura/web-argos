@@ -1,6 +1,7 @@
 "use client";
 
 import useSWR from "swr";
+import { apiFetch } from "@/lib/api-client";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -8,6 +9,7 @@ export interface VistoriaListItem {
   id: string;
   sinistroId: string;
   status: string;
+  tipoVistoria: string | null;
   createdAt: string | null;
   updatedAt: string | null;
   veiculo: string;
@@ -27,7 +29,7 @@ interface VistoriasListResponse {
 // ── Fetcher ───────────────────────────────────────────────────────────────────
 
 async function fetcher(url: string): Promise<VistoriasListResponse> {
-  const res = await fetch(url);
+  const res = await apiFetch(url);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error((body as { error?: string }).error ?? `Erro ${res.status}`);
@@ -37,8 +39,12 @@ async function fetcher(url: string): Promise<VistoriasListResponse> {
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
-export function useVistoriasList(status?: string) {
-  const url = status ? `/api/vistorias?status=${encodeURIComponent(status)}` : "/api/vistorias";
+export function useVistoriasList(options?: { status?: string; tipoVistoria?: string }) {
+  const params = new URLSearchParams();
+  if (options?.status) params.set("status", options.status);
+  if (options?.tipoVistoria) params.set("tipoVistoria", options.tipoVistoria);
+  const qs = params.toString();
+  const url = qs ? `/api/vistorias?${qs}` : "/api/vistorias";
 
   const { data, error, isLoading, mutate } = useSWR<VistoriasListResponse>(
     url,

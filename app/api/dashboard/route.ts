@@ -4,6 +4,7 @@ import type {
   QueryDocumentSnapshot,
 } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireAuth, AuthError } from "@/lib/auth-server";
 
 export const runtime = "nodejs";
 
@@ -19,10 +20,10 @@ type FilterKey = (typeof VALID_FILTERS)[number];
 
 // Inclui ambos os cases: dados legados em minúsculo e novos dados em MAIÚSCULO
 const VISTORIA_RELEVANT_STATUSES = [
-  "EM_ANDAMENTO",        "em_andamento",
-  "EM_ANALISE_IA",       "em_analise_ia",
+  "EM_ANDAMENTO",           "em_andamento",
   "EM_ANALISE_OPERACIONAL", "em_analise_operacional",
-  "REJEITADA",           "rejeitada",
+  "REJEITADA",              "rejeitada",
+  "CANCELADA",              "cancelada",
 ] as const;
 
 function isValidFilter(value: string): value is FilterKey {
@@ -175,6 +176,13 @@ function mapAlertaDoc(doc: QueryDocumentSnapshot<DocumentData>) {
 
 export async function GET(request: Request) {
   try {
+    await requireAuth(request);
+  } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: (e as Error).message }, { status: 401 });
+    return NextResponse.json({ error: "Token inválido." }, { status: 401 });
+  }
+  try {
+
     const { searchParams } = new URL(request.url);
 
     const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
@@ -221,10 +229,11 @@ export async function GET(request: Request) {
     for (const [sid, { status }] of latestVistoria.entries()) {
       if (status === "EM_ANALISE_OPERACIONAL") {
         aguardandoAceiteIds.add(sid);
-      } else {
-        // EM_ANDAMENTO | EM_ANALISE_IA | REJEITADA
+      } else if (status !== "CANCELADA" && status !== "FINALIZADA") {
+        // EM_ANDAMENTO | REJEITADA
         emVistoriaIds.add(sid);
       }
+      // CANCELADA / FINALIZADA não pertencem a nenhum conjunto ativo
     }
     const allVistoriaIds = new Set([...emVistoriaIds, ...aguardandoAceiteIds]);
 

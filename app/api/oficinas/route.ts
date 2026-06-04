@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import type { DocumentData, QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireAuth, AuthError } from "@/lib/auth-server";
 
 export const runtime = "nodejs";
 
@@ -53,6 +54,13 @@ function matchesSearch(doc: QueryDocumentSnapshot<DocumentData>, search: string)
 
 export async function GET(request: Request) {
   try {
+    await requireAuth(request);
+  } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: (e as Error).message }, { status: 401 });
+    return NextResponse.json({ error: "Token inválido." }, { status: 401 });
+  }
+  try {
+
     const { searchParams } = new URL(request.url);
 
     const page = Math.max(
@@ -126,6 +134,13 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    await requireAuth(request);
+  } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: (e as Error).message }, { status: 401 });
+    return NextResponse.json({ error: "Token inválido." }, { status: 401 });
+  }
+  try {
+
     const body = await request.json().catch(() => ({}));
 
     const nome = toText(body.nome);

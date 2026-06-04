@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/api-client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -393,7 +394,7 @@ export function OficinasList({
         search: debouncedSearchQuery,
       });
 
-      const firstResponse = await fetch(
+      const firstResponse = await apiFetch(
         `/api/oficinas?${firstParams.toString()}`,
       );
       if (!firstResponse.ok) throw new Error("Falha ao carregar oficinas");
@@ -412,7 +413,7 @@ export function OficinasList({
                   limit: String(apiLimit),
                   search: debouncedSearchQuery,
                 });
-                return fetch(`/api/oficinas?${params.toString()}`).then(
+                return apiFetch(`/api/oficinas?${params.toString()}`).then(
                   (res) => {
                     if (!res.ok) {
                       throw new Error("Falha ao carregar oficinas");
@@ -445,7 +446,7 @@ export function OficinasList({
   const fetchSinistros = async (oficinaId: string) => {
     setIsLoadingSinistros(true);
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/oficinas/${oficinaId}/sinistros?limit=10`,
       );
       if (!response.ok) throw new Error("Falha ao carregar sinistros");
@@ -503,7 +504,7 @@ export function OficinasList({
     if (!selectedOficina) return;
 
     try {
-      const response = await fetch(`/api/oficinas/${selectedOficina.id}`, {
+      const response = await apiFetch(`/api/oficinas/${selectedOficina.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -557,7 +558,7 @@ export function OficinasList({
     try {
       const newStatus =
         selectedOficina.status === "Ativo" ? "Suspenso" : "Ativo";
-      const response = await fetch(`/api/oficinas/${selectedOficina.id}`, {
+      const response = await apiFetch(`/api/oficinas/${selectedOficina.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),

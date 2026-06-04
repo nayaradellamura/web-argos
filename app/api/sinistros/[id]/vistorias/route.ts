@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireAuth, AuthError } from "@/lib/auth-server";
 
 export const runtime = "nodejs";
 
@@ -59,9 +60,15 @@ async function findSinistroDocRefById(rawId: string) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  try {
+    await requireAuth(request);
+  } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: (e as Error).message }, { status: 401 });
+    return NextResponse.json({ error: "Token inválido." }, { status: 401 });
+  }
   try {
     const { id } = await params;
     const db = getAdminDb();
@@ -87,7 +94,10 @@ export async function GET(
           id: doc.id,
           sinistroId: (data.sinistroId as string | undefined) ?? ref.id,
           status: String(data.status ?? "").toUpperCase(),
+          tipoVistoria: (data.tipoVistoria as string | undefined) ?? null,
           motivoRejeicao: (data.motivoRejeicao as string | undefined) ?? null,
+          ajustesNecessarios: (data.ajustesNecessarios as string | undefined) ?? null,
+          motivoCancelamento: (data.motivoCancelamento as string | undefined) ?? null,
           createdAt: serializeTs(data.createdAt),
           updatedAt: serializeTs(data.updatedAt),
           _ts: toMs(data.createdAt),

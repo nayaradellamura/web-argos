@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/api-client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -82,7 +83,7 @@ function useSinistrosTable(
             params.set("search", normalizedSearch);
           }
 
-          const res = await fetch(`/api/dashboard?${params.toString()}`);
+          const res = await apiFetch(`/api/dashboard?${params.toString()}`);
           if (!res.ok) throw new Error(`dashboard fetch failed: ${res.status}`);
 
           const data = (await res.json()) as {
@@ -105,7 +106,7 @@ function useSinistrosTable(
           params.set("search", normalizedSearch);
         }
 
-        const res = await fetch(`/api/sinistros?${params.toString()}`);
+        const res = await apiFetch(`/api/sinistros?${params.toString()}`);
         if (!res.ok) throw new Error(`sinistros fetch failed: ${res.status}`);
         const data = (await res.json()) as {
           sinistros?: unknown[];
@@ -180,14 +181,14 @@ export default function DashboardPage() {
   useEffect(() => {
     router.prefetch("/orquestracao");
 
-    void fetch("/api/sinistros?tipo=kanban").catch(() => null);
+    void apiFetch("/api/sinistros?tipo=kanban").catch(() => null);
   }, [router]);
 
   useEffect(() => {
     let isMounted = true;
     const fetchKpis = async () => {
       try {
-        const res = await fetch("/api/dashboard?page=1&limit=1");
+        const res = await apiFetch("/api/dashboard?page=1&limit=1");
         if (!res.ok) return;
         const data = (await res.json()) as {
           kpis?: Partial<

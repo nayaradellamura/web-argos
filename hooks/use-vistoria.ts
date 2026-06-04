@@ -1,6 +1,7 @@
 "use client";
 
 import useSWR from "swr";
+import { apiFetch } from "@/lib/api-client";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -8,7 +9,12 @@ export interface VistoriaDetalhe {
   id: string;
   sinistroId: string | null;
   status: string;
+  tipoVistoria: string | null;
+  retificacaoAtualId: string | null;
+  vistoriaOrigemId: string | null;
   motivoRejeicao: string | null;
+  ajustesNecessarios: string | null;
+  motivoCancelamento: string | null;
   laudo: string | null;
   pdfLaudoUrl: string | null;
   alertas: unknown;
@@ -34,6 +40,9 @@ export interface VistoriaDetalhe {
     | string[]
     | null;
   chatmessages: ChatMessage[];
+
+  // Subcoleção de áudios com transcrições
+  audiosSubcollection: AudioSubcollectionItem[];
 }
 
 export interface ChatMessage {
@@ -42,10 +51,19 @@ export interface ChatMessage {
   createdAt: string | null;
 }
 
+export interface AudioSubcollectionItem {
+  id: string;
+  transcricaoOriginal?: string | null;
+  transcricaoRevisada?: string | null;
+  transcriptionStatus?: string | null;
+  reviewStatus?: string | null;
+  agentReply?: string | null;
+}
+
 // ── Fetcher ───────────────────────────────────────────────────────────────────
 
 async function fetcher(url: string): Promise<VistoriaDetalhe> {
-  const res = await fetch(url);
+  const res = await apiFetch(url);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error((body as { error?: string }).error ?? `Erro ${res.status}`);

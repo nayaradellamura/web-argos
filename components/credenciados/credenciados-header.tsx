@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/api-client";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -131,7 +132,7 @@ export function CredenciadosHeader({
 
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/oficinas", {
+      const response = await apiFetch("/api/oficinas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

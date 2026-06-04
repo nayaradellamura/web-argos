@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import Link from "next/link";
 import { login, loginWithGoogle } from "@/lib/services/auth";
 
 export default function LoginPage() {
@@ -76,6 +77,8 @@ export default function LoginPage() {
   };
 
   return (
+    <>
+      <Link href="/dashboard" prefetch={true} className="hidden" aria-hidden />
     <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(30,99,236,0.18),transparent_28%),radial-gradient(circle_at_80%_20%,rgba(0,196,140,0.14),transparent_22%),linear-gradient(180deg,#f7f9fc_0%,#eef3f9_100%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(30,99,236,0.08),transparent_28%),radial-gradient(circle_at_80%_20%,rgba(0,196,140,0.08),transparent_22%),linear-gradient(180deg,#1a1f2e_0%,#141820_100%)] px-4 py-10 sm:px-6 lg:px-10">
       <div className="absolute -left-32 top-16 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
       <div className="absolute bottom-0 -right-24 h-72 w-72 rounded-full bg-emerald-400/10 blur-3xl" />
@@ -172,5 +175,6 @@ export default function LoginPage() {
         </section>
       </div>
     </main>
+    </>
   );
 }

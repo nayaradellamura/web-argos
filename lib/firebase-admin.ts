@@ -9,6 +9,7 @@ import {
 } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { getMessaging } from "firebase-admin/messaging";
 
 // Importa o JSON diretamente (ajuste o caminho se o JSON estiver em outra pasta)
 // Assumindo que o JSON está na raiz do projeto (uma pasta para trás da lib)
@@ -37,4 +38,8 @@ export function getAdminAuth() {
 
 export function getAdminDb() {
   return getFirestore(getAdminApp());
+}
+
+export function getAdminMessaging() {
+  return getMessaging(getAdminApp());
 }

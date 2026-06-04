@@ -1,16 +1,33 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
+import { LoadingScreen } from "./loading-screen";
 
 interface AppLayoutProps {
   children: React.ReactNode;
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
+  const router = useRouter();
+  const [authReady, setAuthReady] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        router.replace("/login");
+      } else {
+        setAuthReady(true);
+      }
+    });
+    return unsubscribe;
+  }, [router]);
 
   useEffect(() => {
     const savedState = window.localStorage.getItem("argos:sidebar-collapsed");
@@ -37,6 +54,10 @@ export function AppLayout({ children }: AppLayoutProps) {
       return next;
     });
   };
+
+  if (!authReady) {
+    return <LoadingScreen fullScreen message="Verificando autenticação..." />;
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">

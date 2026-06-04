@@ -6,10 +6,10 @@ export type SinistroStatus = "PENDENTE" | "EM_ANDAMENTO" | "FINALIZADO";
 // Coleção `vistorias` — campo `status`
 export type VistoriaStatus =
   | "EM_ANDAMENTO"
-  | "EM_ANALISE_IA"
   | "EM_ANALISE_OPERACIONAL"
   | "FINALIZADA"
-  | "REJEITADA";
+  | "REJEITADA"
+  | "CANCELADA";
 
 // Estágios do Kanban gerencial (campo `stage`) — mantido para compatibilidade
 export type SinistroStage =
@@ -70,9 +70,23 @@ export interface Vistoria {
   id: string;
   sinistroId: string;
   status: VistoriaStatus;
+  tipoVistoria?: "ORIGINAL" | "RETIFICACAO";
+  retificacaoAtualId?: string;
+  vistoriaOrigemId?: string;
   motivoRejeicao?: string;
+  ajustesNecessarios?: string;
+  motivoCancelamento?: string;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
+}
+
+export interface AudioSubcollectionItem {
+  id: string;
+  transcricaoOriginal?: string | null;
+  transcricaoRevisada?: string | null;
+  transcriptionStatus?: string | null;
+  reviewStatus?: string | null;
+  agentReply?: string | null;
 }
 
 export interface Credenciado {

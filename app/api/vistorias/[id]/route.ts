@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getAdminDb } from "@/lib/firebase-admin";
+import { getAdminDb, getAdminMessaging } from "@/lib/firebase-admin";
+import { requireAuth, AuthError } from "@/lib/auth-server";
 import type { VistoriaStatus } from "@/lib/types/firestore";
 
 export const runtime = "nodejs";
@@ -36,9 +37,15 @@ function serializeFirestore(value: unknown): unknown {
 // Retorna a vistoria completa com dados do sinistro pai (snapshots de cliente,
 // veículo e credenciado) embutidos para evitar round-trips no frontend.
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  try {
+    await requireAuth(request);
+  } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: (e as Error).message }, { status: 401 });
+    return NextResponse.json({ error: "Token inválido." }, { status: 401 });
+  }
   try {
     const { id } = await params;
     if (!id) {
@@ -68,6 +75,17 @@ export async function GET(
     const audios = (vData.audios as Record<string, string> | string[] | undefined) ?? {};
     const chatmessages = Array.isArray(vData.chatmessages) ? vData.chatmessages : [];
 
+    // Subcoleção de áudios com transcrições (nova estrutura)
+    const audiosSubSnap = await db
+      .collection("vistorias")
+      .doc(id)
+      .collection("audios")
+      .get();
+    const audiosSubcollection = audiosSubSnap.docs.map((doc) => ({
+      id: doc.id,
+      ...serializeFirestore(doc.data()) as Record<string, unknown>,
+    }));
+
     const veiculoSnap = sData.veiculoSnapshot as Record<string, unknown> | undefined;
     const clienteSnap = sData.clienteSnapshot as Record<string, unknown> | undefined;
     const credSnap    = sData.credenciadoSnapshot as Record<string, unknown> | undefined;
@@ -75,13 +93,18 @@ export async function GET(
     const payload = {
       id: vistoriaSnap.id,
       sinistroId: sinistroId ?? null,
-      status:           String(vData.status ?? "").toUpperCase(),
-      motivoRejeicao:   vData.motivoRejeicao ? String(vData.motivoRejeicao) : null,
-      laudo:            vData.laudo ? String(vData.laudo) : null,
-      pdfLaudoUrl:      vData.pdfLaudoUrl ? String(vData.pdfLaudoUrl) : null,
-      alertas:          vData.alertas ?? null,
-      createdAt:        serializeFirestore(vData.createdAt) as string | null,
-      updatedAt:        serializeFirestore(vData.updatedAt) as string | null,
+      status:              String(vData.status ?? "").toUpperCase(),
+      tipoVistoria:        vData.tipoVistoria ? String(vData.tipoVistoria) : null,
+      retificacaoAtualId:  vData.retificacaoAtualId ? String(vData.retificacaoAtualId) : null,
+      vistoriaOrigemId:    vData.vistoriaOrigemId ? String(vData.vistoriaOrigemId) : null,
+      motivoRejeicao:      vData.motivoRejeicao ? String(vData.motivoRejeicao) : null,
+      ajustesNecessarios:  vData.ajustesNecessarios ? String(vData.ajustesNecessarios) : null,
+      motivoCancelamento:  vData.motivoCancelamento ? String(vData.motivoCancelamento) : null,
+      laudo:               vData.laudo ? String(vData.laudo) : null,
+      pdfLaudoUrl:         vData.pdfLaudoUrl ? String(vData.pdfLaudoUrl) : null,
+      alertas:             vData.alertas ?? null,
+      createdAt:           serializeFirestore(vData.createdAt) as string | null,
+      updatedAt:           serializeFirestore(vData.updatedAt) as string | null,
 
       // Campos derivados do sinistro pai
       placa:       String(veiculoSnap?.placa ?? sData.placa ?? ""),
@@ -97,6 +120,9 @@ export async function GET(
       images:      serializeFirestore(images) as Record<string, string>,
       audios:      serializeFirestore(audios),
       chatmessages: serializeFirestore(chatmessages),
+
+      // Subcoleção de áudios com transcrições
+      audiosSubcollection,
     };
 
     return NextResponse.json(payload);
@@ -111,11 +137,18 @@ export async function GET(
 
 const VALID_STATUSES: VistoriaStatus[] = [
   "EM_ANDAMENTO",
-  "EM_ANALISE_IA",
   "EM_ANALISE_OPERACIONAL",
   "FINALIZADA",
   "REJEITADA",
+  "CANCELADA",
 ];
+
+const FCM_NOTIFY_STATUSES = new Set<string>([
+  "EM_ANALISE_OPERACIONAL",
+  "FINALIZADA",
+  "REJEITADA",
+  "CANCELADA",
+]);
 
 function isValidStatus(value: string): value is VistoriaStatus {
   return (VALID_STATUSES as string[]).includes(value);
@@ -125,6 +158,12 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  try {
+    await requireAuth(request);
+  } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: (e as Error).message }, { status: 401 });
+    return NextResponse.json({ error: "Token inválido." }, { status: 401 });
+  }
   try {
     const { id } = await params;
     if (!id) {
@@ -144,12 +183,30 @@ export async function PATCH(
       );
     }
 
-    // Validação: motivoRejeicao obrigatório ao rejeitar
+    // Validação: motivoRejeicao + ajustesNecessarios obrigatórios ao rejeitar
     if (newStatus === "REJEITADA") {
       const motivo = body.motivoRejeicao;
       if (!motivo || String(motivo).trim() === "") {
         return NextResponse.json(
           { error: "motivoRejeicao é obrigatório ao rejeitar uma vistoria." },
+          { status: 400 },
+        );
+      }
+      const ajustes = body.ajustesNecessarios;
+      if (!ajustes || String(ajustes).trim() === "") {
+        return NextResponse.json(
+          { error: "ajustesNecessarios é obrigatório ao rejeitar uma vistoria." },
+          { status: 400 },
+        );
+      }
+    }
+
+    // Validação: motivoCancelamento obrigatório ao cancelar
+    if (newStatus === "CANCELADA") {
+      const motivo = body.motivoCancelamento;
+      if (!motivo || String(motivo).trim() === "") {
+        return NextResponse.json(
+          { error: "motivoCancelamento é obrigatório ao cancelar uma vistoria." },
           { status: 400 },
         );
       }
@@ -164,6 +221,16 @@ export async function PATCH(
     }
 
     const vistoriaData = vistoriaSnap.data()!;
+
+    // Bloqueia edições em status terminais
+    const currentStatus = String(vistoriaData.status ?? "").toUpperCase();
+    if (currentStatus === "FINALIZADA" || currentStatus === "CANCELADA") {
+      return NextResponse.json(
+        { error: `Não é possível editar uma vistoria com status ${currentStatus}.` },
+        { status: 409 },
+      );
+    }
+
     const sinistroId = vistoriaData.sinistroId as string | undefined;
 
     const updatePayload: Record<string, unknown> = {
@@ -171,8 +238,13 @@ export async function PATCH(
       updatedAt: new Date().toISOString(),
     };
 
-    if (newStatus === "REJEITADA" && body.motivoRejeicao) {
+    if (newStatus === "REJEITADA") {
       updatePayload.motivoRejeicao = String(body.motivoRejeicao).trim();
+      updatePayload.ajustesNecessarios = String(body.ajustesNecessarios).trim();
+    }
+
+    if (newStatus === "CANCELADA") {
+      updatePayload.motivoCancelamento = String(body.motivoCancelamento).trim();
     }
 
     // Regra de transição: FINALIZADA → sinistro pai passa para FINALIZADO
@@ -187,6 +259,22 @@ export async function PATCH(
       ]);
     } else {
       await vistoriaRef.update(updatePayload);
+    }
+
+    // Notificação FCM (não-fatal: erro não interrompe a resposta)
+    if (FCM_NOTIFY_STATUSES.has(newStatus)) {
+      try {
+        await getAdminMessaging().send({
+          topic: `vistoria_${id}`,
+          notification: {
+            title: `Vistoria ${id}`,
+            body: `Status atualizado para ${newStatus}`,
+          },
+          data: { vistoriaId: id, status: newStatus },
+        });
+      } catch (fcmError) {
+        console.error("FCM dispatch falhou (não-fatal):", fcmError);
+      }
     }
 
     const updated = await vistoriaRef.get();

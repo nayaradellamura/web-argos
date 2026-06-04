@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireAuth, AuthError } from "@/lib/auth-server";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    await requireAuth(request);
+  } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: (e as Error).message }, { status: 401 });
+    return NextResponse.json({ error: "Token inválido." }, { status: 401 });
+  }
+  try {
     const { id } = await params;
     const body = (await request.json()) as Record<string, unknown>;
     const motivoRejeicao = body.motivoRejeicao
@@ -29,6 +36,17 @@ export async function PATCH(
     if (!motivoRejeicao) {
       return NextResponse.json(
         { error: "motivoRejeicao é obrigatório para rejeitar uma vistoria." },
+        { status: 400 },
+      );
+    }
+
+    const ajustesNecessarios = body.ajustesNecessarios
+      ? String(body.ajustesNecessarios).trim()
+      : "";
+
+    if (!ajustesNecessarios) {
+      return NextResponse.json(
+        { error: "ajustesNecessarios é obrigatório para rejeitar uma vistoria." },
         { status: 400 },
       );
     }
@@ -68,6 +86,7 @@ export async function PATCH(
     await latestDoc.ref.update({
       status: "REJEITADA",
       motivoRejeicao,
+      ajustesNecessarios,
       updatedAt: now,
     });
 
@@ -77,6 +96,7 @@ export async function PATCH(
       vistoriaId: latestDoc.id,
       vistoriaStatus: "REJEITADA",
       motivoRejeicao,
+      ajustesNecessarios,
       updatedAt: now,
     });
   } catch (error) {

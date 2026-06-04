@@ -7,6 +7,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { apiFetch } from "@/lib/api-client";
 
 function ensureDocId(id: unknown, entity: string): string {
   if (typeof id === "string" && id.trim()) {
@@ -101,7 +102,7 @@ export async function updateCliente(
   data: Partial<Cliente>,
 ): Promise<void> {
   const docId = ensureDocId(id, "cliente");
-  const response = await fetch(`/api/clientes/${encodeURIComponent(docId)}`, {
+  const response = await apiFetch(`/api/clientes/${encodeURIComponent(docId)}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -114,7 +115,7 @@ export async function updateCliente(
 
 export async function deleteCliente(id: string): Promise<void> {
   const docId = ensureDocId(id, "cliente");
-  const response = await fetch(`/api/clientes/${encodeURIComponent(docId)}`, {
+  const response = await apiFetch(`/api/clientes/${encodeURIComponent(docId)}`, {
     method: "DELETE",
   });
 
@@ -133,7 +134,7 @@ export async function updateVeiculo(
   data: Partial<Veiculo>,
 ): Promise<void> {
   const docId = ensureDocId(id, "veículo");
-  const response = await fetch(`/api/veiculos/${encodeURIComponent(docId)}`, {
+  const response = await apiFetch(`/api/veiculos/${encodeURIComponent(docId)}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -146,7 +147,7 @@ export async function updateVeiculo(
 
 export async function deleteVeiculo(id: string): Promise<void> {
   const docId = ensureDocId(id, "veículo");
-  const response = await fetch(`/api/veiculos/${encodeURIComponent(docId)}`, {
+  const response = await apiFetch(`/api/veiculos/${encodeURIComponent(docId)}`, {
     method: "DELETE",
   });
 

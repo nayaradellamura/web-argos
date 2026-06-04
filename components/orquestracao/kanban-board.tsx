@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/api-client";
 
 import {
   memo,
@@ -106,6 +107,7 @@ export interface KanbanCard {
   checkInAt: string | null;
   entryDate: string | null;
   latestVistoriaStatus: string | null;
+  tipoVistoria?: string | null;
   isRejected: boolean;
   hasHistoricoRejeicao: boolean;
   kanbanColumn: KanbanColumnId;
@@ -170,7 +172,10 @@ interface VistoriaHistorico {
   id: string;
   status: string;
   createdAt: string;
+  tipoVistoria?: string | null;
   motivoRejeicao?: string | null;
+  ajustesNecessarios?: string | null;
+  motivoCancelamento?: string | null;
 }
 
 function normalizeProtocolValue(value?: string | null) {
@@ -297,7 +302,7 @@ const EMPTY_COLUMNS: Record<KanbanColumnId, KanbanCard[]> = {
 };
 
 const fetcher = async <T,>(url: string): Promise<T> => {
-  const res = await fetch(url);
+  const res = await apiFetch(url);
   if (!res.ok) {
     throw new Error(`Falha ao buscar ${url}: ${res.status}`);
   }
@@ -344,10 +349,10 @@ function formatStatus(status: string): string {
     PENDENTE: "Pendente",
     EM_ANDAMENTO: "Em Andamento",
     FINALIZADO: "Finalizado",
-    EM_ANALISE_IA: "Em Análise pela IA",
     EM_ANALISE_OPERACIONAL: "Em Análise",
     FINALIZADA: "Finalizada",
     REJEITADA: "Rejeitada",
+    CANCELADA: "Cancelada",
   };
   return map[normalized] ?? status;
 }
@@ -357,14 +362,14 @@ function getVistoriaBadgeClass(status: string) {
   if (normalized === "REJEITADA") {
     return "border-red-200 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300";
   }
-  if (normalized === "EM_ANALISE_IA") {
-    return "border-purple-200 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300";
-  }
   if (normalized === "EM_ANALISE_OPERACIONAL") {
     return "border-amber-200 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
   }
   if (normalized === "FINALIZADA") {
     return "border-emerald-200 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300";
+  }
+  if (normalized === "CANCELADA") {
+    return "border-orange-200 bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300";
   }
   return "border-slate-200 bg-slate-100 text-slate-700 dark:bg-slate-900/30 dark:text-slate-300";
 }
@@ -394,6 +399,7 @@ const KanbanCardItem = memo(function KanbanCardItem({
   onQuickLink,
   onQuickAnalyze,
 }: KanbanCardItemProps) {
+  const cardRouter = useRouter();
   const clientName =
     card.clienteSnapshot?.nomeCompleto ??
     card.clientesSnapshot?.nomeCompleto ??
@@ -484,6 +490,15 @@ const KanbanCardItem = memo(function KanbanCardItem({
           </Badge>
         )}
 
+        {card.tipoVistoria === "RETIFICACAO" && (
+          <Badge
+            variant="secondary"
+            className="border border-amber-200 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+          >
+            RETIFICAÇÃO
+          </Badge>
+        )}
+
         {card.latestVistoriaStatus && (
           <div className="flex flex-wrap items-center gap-2">
             <Badge
@@ -497,6 +512,22 @@ const KanbanCardItem = memo(function KanbanCardItem({
               {`Vistoria: ${formatStatus(card.latestVistoriaStatus)}`}
             </Badge>
           </div>
+        )}
+
+        {card.latestVistoriaStatus && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-auto w-full min-w-0 justify-center gap-1.5 whitespace-normal px-2 py-1.5 text-center text-xs leading-tight"
+            onClick={(e) => {
+              e.stopPropagation();
+              cardRouter.push(`/vistoria?sinistroId=${card.id}`);
+            }}
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            Ver Vistoria
+          </Button>
         )}
 
         {columnId === "triagem" && (
@@ -759,6 +790,7 @@ export function KanbanBoard() {
   }>({ open: false, card: null, alertas: [], isLoadingAlertas: false });
   const [isRejecting, setIsRejecting] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [ajustesNecessariosRejeicao, setAjustesNecessariosRejeicao] = useState("");
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [isRejectSubmitting, setIsRejectSubmitting] = useState(false);
 
@@ -936,7 +968,7 @@ export function KanbanBoard() {
   const handleCreate = async () => {
     try {
       setIsCreateSubmitting(true);
-      const res = await fetch("/api/sinistros", {
+      const res = await apiFetch("/api/sinistros", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -991,7 +1023,7 @@ export function KanbanBoard() {
     if (!editingCard) return;
     try {
       setIsEditSubmitting(true);
-      const res = await fetch(`/api/sinistros/${editingCard.id}`, {
+      const res = await apiFetch(`/api/sinistros/${editingCard.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1026,7 +1058,7 @@ export function KanbanBoard() {
     if (!deletingCard) return;
     try {
       setIsDeleting(true);
-      const res = await fetch(`/api/sinistros/${deletingCard.id}`, {
+      const res = await apiFetch(`/api/sinistros/${deletingCard.id}`, {
         method: "DELETE",
       });
       const body = (await res.json()) as { error?: string };
@@ -1050,7 +1082,7 @@ export function KanbanBoard() {
   };
 
   const fetchAlertasIa = useCallback(async (sinistroId: string) => {
-    const res = await fetch(`/api/sinistros/${sinistroId}/alertas`);
+    const res = await apiFetch(`/api/sinistros/${sinistroId}/alertas`);
     const body = (await res.json()) as
       | AlertasResponse
       | { alertas?: Record<string, unknown>[]; error?: string };
@@ -1079,8 +1111,8 @@ export function KanbanBoard() {
     setDetailsHistorico({ isLoading: true, vistorias: [] });
     try {
       const [detailRes, historicoRes] = await Promise.all([
-        fetch(`/api/sinistros/${card.id}`),
-        fetch(`/api/sinistros/${card.id}/vistorias`),
+        apiFetch(`/api/sinistros/${card.id}`),
+        apiFetch(`/api/sinistros/${card.id}/vistorias`),
       ]);
       const body = (await detailRes.json()) as SinistroDetailResponse & {
         error?: string;
@@ -1165,7 +1197,7 @@ export function KanbanBoard() {
 
     void (async () => {
       try {
-        const res = await fetch(
+        const res = await apiFetch(
           `/api/sinistros?tipo=kanban&protocolo=${encodeURIComponent(protocoloParaAbrir)}`,
         );
 
@@ -1235,7 +1267,7 @@ export function KanbanBoard() {
 
     try {
       setIsLinking(true);
-      const res = await fetch(`/api/sinistros/${movedCard.id}/vincular`, {
+      const res = await apiFetch(`/api/sinistros/${movedCard.id}/vincular`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1277,7 +1309,7 @@ export function KanbanBoard() {
 
     try {
       setIsCheckingIn(true);
-      const res = await fetch(`/api/sinistros/${movedCard.id}/checkin`, {
+      const res = await apiFetch(`/api/sinistros/${movedCard.id}/checkin`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ checkInAt: nowIso }),
@@ -1313,11 +1345,13 @@ export function KanbanBoard() {
     });
     setIsRejecting(false);
     setRejectReason("");
+    setAjustesNecessariosRejeicao("");
   }, []);
 
   const openApprovalModal = async (card: KanbanCard) => {
     setIsRejecting(false);
     setRejectReason("");
+    setAjustesNecessariosRejeicao("");
     setApprovalModal({ open: true, card, alertas: [], isLoadingAlertas: true });
     try {
       const alertas = await fetchAlertasIa(card.id);
@@ -1360,7 +1394,7 @@ export function KanbanBoard() {
 
     try {
       setIsFinalizing(true);
-      const res = await fetch(`/api/sinistros/${movedCard.id}/finalizar`, {
+      const res = await apiFetch(`/api/sinistros/${movedCard.id}/finalizar`, {
         method: "PATCH",
       });
       const body = (await res.json()) as { error?: string };
@@ -1386,10 +1420,11 @@ export function KanbanBoard() {
   };
 
   const handleConfirmReject = async () => {
-    if (!approvalModal.card || !rejectReason.trim()) return;
+    if (!approvalModal.card || !rejectReason.trim() || !ajustesNecessariosRejeicao.trim()) return;
 
     const movedCard = approvalModal.card;
     const motivoRejeicao = rejectReason.trim();
+    const ajustesNecessarios = ajustesNecessariosRejeicao.trim();
     const snapshotBeforeMove = data;
 
     optimisticMove(movedCard, "analiseOperacional", "emVistoria", {
@@ -1399,10 +1434,10 @@ export function KanbanBoard() {
 
     try {
       setIsRejectSubmitting(true);
-      const res = await fetch(`/api/sinistros/${movedCard.id}/rejeitar`, {
+      const res = await apiFetch(`/api/sinistros/${movedCard.id}/rejeitar`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ motivoRejeicao }),
+        body: JSON.stringify({ motivoRejeicao, ajustesNecessarios }),
       });
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
@@ -2301,10 +2336,24 @@ export function KanbanBoard() {
                 {(detailsHistorico.isLoading ||
                   detailsHistorico.vistorias.length > 0) && (
                   <div className="mb-4 rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
-                    <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-primary">
-                      <FileText className="h-5 w-5" />
-                      Histórico de Vistorias
-                    </h3>
+                    <div className="mb-4 flex items-center justify-between gap-2">
+                      <h3 className="flex items-center gap-2 text-lg font-semibold text-primary">
+                        <FileText className="h-5 w-5" />
+                        Histórico de Vistorias
+                      </h3>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 text-xs"
+                        onClick={() =>
+                          router.push(`/vistoria?sinistroId=${detailsModal.card?.id}`)
+                        }
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Ver Vistoria
+                      </Button>
+                    </div>
                     {detailsHistorico.isLoading ? (
                       <p className="text-sm text-muted-foreground">
                         Carregando histórico...
@@ -2320,7 +2369,9 @@ export function KanbanBoard() {
                                   ? "bg-red-400"
                                   : v.status.toUpperCase().includes("FINALIZ")
                                     ? "bg-emerald-400"
-                                    : "bg-amber-400",
+                                    : v.status.toUpperCase().includes("CANCEL")
+                                      ? "bg-orange-400"
+                                      : "bg-amber-400",
                               )}
                             />
                             <div className="rounded-lg border border-border/60 bg-muted/40 px-3 py-2 dark:bg-muted/20">
@@ -2342,13 +2393,37 @@ export function KanbanBoard() {
                               <p className="mt-1 text-xs text-muted-foreground">
                                 {formatDate(v.createdAt)}
                               </p>
-                              {v.motivoRejeicao && (
+                              {(v.motivoRejeicao || v.ajustesNecessarios) && (
                                 <div className="mt-2 rounded border border-red-200 bg-red-50 px-2 py-1.5 dark:border-red-900/50 dark:bg-red-950/25">
-                                  <p className="text-xs font-medium text-red-700 dark:text-red-300">
-                                    Motivo da rejeição:
+                                  {v.motivoRejeicao && (
+                                    <>
+                                      <p className="text-xs font-medium text-red-700 dark:text-red-300">
+                                        Motivo da rejeição:
+                                      </p>
+                                      <p className="mt-0.5 text-xs text-red-600 dark:text-red-200/90">
+                                        {v.motivoRejeicao}
+                                      </p>
+                                    </>
+                                  )}
+                                  {v.ajustesNecessarios && (
+                                    <>
+                                      <p className={cn("text-xs font-medium text-red-700 dark:text-red-300", v.motivoRejeicao && "mt-2")}>
+                                        Ajustes necessários:
+                                      </p>
+                                      <p className="mt-0.5 text-xs text-red-600 dark:text-red-200/90">
+                                        {v.ajustesNecessarios}
+                                      </p>
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                              {v.motivoCancelamento && (
+                                <div className="mt-2 rounded border border-orange-200 bg-orange-50 px-2 py-1.5 dark:border-orange-900/50 dark:bg-orange-950/25">
+                                  <p className="text-xs font-medium text-orange-700 dark:text-orange-300">
+                                    Motivo do cancelamento:
                                   </p>
-                                  <p className="mt-0.5 text-xs text-red-600 dark:text-red-200/90">
-                                    {v.motivoRejeicao}
+                                  <p className="mt-0.5 text-xs text-orange-600 dark:text-orange-200/90">
+                                    {v.motivoCancelamento}
                                   </p>
                                 </div>
                               )}
@@ -2805,24 +2880,45 @@ export function KanbanBoard() {
 
               {/* Bloco de rejeição — visível apenas quando isRejecting */}
               {isRejecting && (
-                <div className="grid gap-2 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/25">
-                  <Label
-                    htmlFor="reject-reason"
-                    className="text-sm font-semibold text-red-800 dark:text-red-300"
-                  >
-                    Motivo da Rejeição{" "}
-                    <span className="font-normal text-red-600 dark:text-red-400">
-                      (obrigatório — será enviado à oficina)
-                    </span>
-                  </Label>
-                  <Textarea
-                    id="reject-reason"
-                    value={rejectReason}
-                    onChange={(event) => setRejectReason(event.target.value)}
-                    placeholder="Descreva claramente o motivo da reprovação para retorno à oficina..."
-                    className="min-h-24 border-red-300 bg-white focus-visible:ring-red-400 dark:border-red-900/50 dark:bg-slate-950/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus-visible:ring-red-500"
-                    disabled={isRejectSubmitting}
-                  />
+                <div className="grid gap-4 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/25">
+                  <div className="grid gap-2">
+                    <Label
+                      htmlFor="reject-reason"
+                      className="text-sm font-semibold text-red-800 dark:text-red-300"
+                    >
+                      Motivo da Rejeição{" "}
+                      <span className="font-normal text-red-600 dark:text-red-400">
+                        (obrigatório — será enviado à oficina)
+                      </span>
+                    </Label>
+                    <Textarea
+                      id="reject-reason"
+                      value={rejectReason}
+                      onChange={(event) => setRejectReason(event.target.value)}
+                      placeholder="Descreva claramente o motivo da reprovação para retorno à oficina..."
+                      className="min-h-24 border-red-300 bg-white focus-visible:ring-red-400 dark:border-red-900/50 dark:bg-slate-950/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus-visible:ring-red-500"
+                      disabled={isRejectSubmitting}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label
+                      htmlFor="ajustes-necessarios"
+                      className="text-sm font-semibold text-red-800 dark:text-red-300"
+                    >
+                      Ajustes Necessários{" "}
+                      <span className="font-normal text-red-600 dark:text-red-400">
+                        (obrigatório — instrução de retificação para a oficina)
+                      </span>
+                    </Label>
+                    <Textarea
+                      id="ajustes-necessarios"
+                      value={ajustesNecessariosRejeicao}
+                      onChange={(event) => setAjustesNecessariosRejeicao(event.target.value)}
+                      placeholder="Descreva os ajustes que a oficina deve realizar na retificação..."
+                      className="min-h-24 border-red-300 bg-white focus-visible:ring-red-400 dark:border-red-900/50 dark:bg-slate-950/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus-visible:ring-red-500"
+                      disabled={isRejectSubmitting}
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -2839,6 +2935,7 @@ export function KanbanBoard() {
                   onClick={() => {
                     setIsRejecting(false);
                     setRejectReason("");
+                    setAjustesNecessariosRejeicao("");
                   }}
                   disabled={isRejectSubmitting}
                 >
@@ -2850,7 +2947,7 @@ export function KanbanBoard() {
                   size="sm"
                   className="h-9 px-4"
                   onClick={handleConfirmReject}
-                  disabled={isRejectSubmitting || !rejectReason.trim()}
+                  disabled={isRejectSubmitting || !rejectReason.trim() || !ajustesNecessariosRejeicao.trim()}
                 >
                   {isRejectSubmitting ? "Rejeitando..." : "Confirmar Rejeição"}
                 </Button>

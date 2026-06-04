@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/api-client";
 
 import { Check, ChevronsUpDown } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -206,7 +207,7 @@ export default function RegistrosPage() {
 
       setSaving(true);
       try {
-        const response = await fetch("/api/clientes", {
+        const response = await apiFetch("/api/clientes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -255,7 +256,7 @@ export default function RegistrosPage() {
 
       setSaving(true);
       try {
-        const response = await fetch("/api/veiculos", {
+        const response = await apiFetch("/api/veiculos", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),

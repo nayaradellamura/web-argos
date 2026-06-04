@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/api-client";
 
 import { useEffect, useMemo, useState } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
@@ -75,7 +76,7 @@ export default function CredenciadosPageClient() {
           search: searchQuery,
         });
 
-        const firstResponse = await fetch(
+        const firstResponse = await apiFetch(
           `/api/oficinas?${params.toString()}`,
           {
             signal: controller.signal,
@@ -106,7 +107,7 @@ export default function CredenciadosPageClient() {
                     search: searchQuery,
                   });
 
-                  return fetch(`/api/oficinas?${extraParams.toString()}`, {
+                  return apiFetch(`/api/oficinas?${extraParams.toString()}`, {
                     signal: controller.signal,
                   }).then((response) => {
                     if (!response.ok) {

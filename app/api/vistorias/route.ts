@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { DocumentData } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireAuth, AuthError } from "@/lib/auth-server";
 
 export const runtime = "nodejs";
 
@@ -44,15 +45,26 @@ function extractHora(iso: string | null): string {
 
 export async function GET(request: Request) {
   try {
+    await requireAuth(request);
+  } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: (e as Error).message }, { status: 401 });
+    return NextResponse.json({ error: "Token inválido." }, { status: 401 });
+  }
+  try {
+
     const { searchParams } = new URL(request.url);
     // Normaliza para minúsculo antes de consultar o Firestore (dados legados em snake_case)
     const statusFilter = searchParams.get("status")?.toLowerCase() ?? "";
+    const tipoVistoriaFilter = searchParams.get("tipoVistoria")?.toUpperCase() ?? "";
 
     const db = getAdminDb();
     let query: FirebaseFirestore.Query = db.collection("vistorias");
 
     if (statusFilter) {
       query = query.where("status", "==", statusFilter);
+    }
+    if (tipoVistoriaFilter) {
+      query = query.where("tipoVistoria", "==", tipoVistoriaFilter);
     }
 
     const snap = await query.get();
@@ -100,6 +112,7 @@ export async function GET(request: Request) {
           sinistroId,
           // Normaliza para MAIÚSCULO — o frontend espera enums em SCREAMING_SNAKE_CASE
           status:      String(v.status ?? "").toUpperCase(),
+          tipoVistoria: String(v.tipoVistoria ?? "").toUpperCase() || null,
           createdAt,
           updatedAt:   serializeTs(v.updatedAt),
           _ts:         toMs(v.createdAt),
