@@ -103,6 +103,7 @@ export async function GET(
       laudo:               vData.laudo ? String(vData.laudo) : null,
       pdfLaudoUrl:         vData.pdfLaudoUrl ? String(vData.pdfLaudoUrl) : null,
       alertas:             vData.alertas ?? null,
+      laudo_analitico:     serializeFirestore(vData.laudo_analitico) ?? null,
       createdAt:           serializeFirestore(vData.createdAt) as string | null,
       updatedAt:           serializeFirestore(vData.updatedAt) as string | null,
 

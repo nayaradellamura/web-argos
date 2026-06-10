@@ -2,6 +2,7 @@
 
 import useSWR from "swr";
 import { apiFetch } from "@/lib/api-client";
+import type { LaudoAnalitico } from "@/lib/types/firestore";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -18,6 +19,7 @@ export interface VistoriaDetalhe {
   laudo: string | null;
   pdfLaudoUrl: string | null;
   alertas: unknown;
+  laudo_analitico: LaudoAnalitico | null;
   createdAt: string | null;
   updatedAt: string | null;
 

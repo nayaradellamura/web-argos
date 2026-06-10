@@ -1,5 +1,6 @@
 "use client";
 import { apiFetch } from "@/lib/api-client";
+import type { LaudoAnalitico } from "@/lib/types/firestore";
 
 import {
   memo,
@@ -17,9 +18,11 @@ import {
   AlertTriangle,
   AlignLeft,
   BarChart3,
+  Bot,
   Building2,
   Car,
   Check,
+  ChevronDown,
   ChevronsUpDown,
   ClipboardCheck,
   FileText,
@@ -787,12 +790,14 @@ export function KanbanBoard() {
     card: KanbanCard | null;
     alertas: AlertaIA[];
     isLoadingAlertas: boolean;
-  }>({ open: false, card: null, alertas: [], isLoadingAlertas: false });
+    laudoAnalitico: LaudoAnalitico | null;
+  }>({ open: false, card: null, alertas: [], isLoadingAlertas: false, laudoAnalitico: null });
   const [isRejecting, setIsRejecting] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [ajustesNecessariosRejeicao, setAjustesNecessariosRejeicao] = useState("");
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [isRejectSubmitting, setIsRejectSubmitting] = useState(false);
+  const [isLaudoExpanded, setIsLaudoExpanded] = useState(false);
 
   const { data, isLoading, mutate, error } = useSWR<KanbanResponse>(
     "/api/sinistros?tipo=kanban",
@@ -1342,24 +1347,37 @@ export function KanbanBoard() {
       card: null,
       alertas: [],
       isLoadingAlertas: false,
+      laudoAnalitico: null,
     });
     setIsRejecting(false);
     setRejectReason("");
     setAjustesNecessariosRejeicao("");
+    setIsLaudoExpanded(false);
   }, []);
 
   const openApprovalModal = async (card: KanbanCard) => {
     setIsRejecting(false);
     setRejectReason("");
     setAjustesNecessariosRejeicao("");
-    setApprovalModal({ open: true, card, alertas: [], isLoadingAlertas: true });
+    setApprovalModal({ open: true, card, alertas: [], isLoadingAlertas: true, laudoAnalitico: null });
     try {
-      const alertas = await fetchAlertasIa(card.id);
+      const [alertasResult, sinistroResult] = await Promise.allSettled([
+        fetchAlertasIa(card.id),
+        apiFetch(`/api/sinistros/${card.id}`).then((r) => r.json() as Promise<{ latestVistoria?: { laudo_analitico?: LaudoAnalitico } }>),
+      ]);
+
+      const alertas = alertasResult.status === "fulfilled" ? alertasResult.value : [];
+      const laudoAnalitico =
+        sinistroResult.status === "fulfilled"
+          ? (sinistroResult.value.latestVistoria?.laudo_analitico ?? null)
+          : null;
+
       setApprovalModal({
         open: true,
         card,
         alertas,
         isLoadingAlertas: false,
+        laudoAnalitico,
       });
     } catch (err) {
       setApprovalModal({
@@ -1367,6 +1385,7 @@ export function KanbanBoard() {
         card,
         alertas: [],
         isLoadingAlertas: false,
+        laudoAnalitico: null,
       });
       toast({
         title: "Erro ao carregar relatório IA",
@@ -2778,14 +2797,159 @@ export function KanbanBoard() {
               {/* Bloco 2 — Relatório da IA */}
               <div>
                 <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <AlertTriangle className="h-4 w-4 text-amber-500" />
-                  Relatório da IA
+                  <Bot className="h-4 w-4 text-violet-500" />
+                  Laudo Analítico da IA
                 </p>
 
                 {approvalModal.isLoadingAlertas ? (
                   <p className="text-sm text-muted-foreground">
                     Carregando relatório...
                   </p>
+                ) : approvalModal.laudoAnalitico ? (
+                  <div
+                    className={cn(
+                      "overflow-hidden rounded-r-xl border-l-4",
+                      approvalModal.laudoAnalitico.incongruencia_detectada
+                        ? "border-l-red-500"
+                        : "border-l-emerald-500",
+                    )}
+                  >
+                    <div className="rounded-r-xl border border-l-0 border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+                      {/* Indicadores sempre visíveis */}
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-3 py-2.5">
+                        <div className="mr-auto flex items-center gap-1.5">
+                          <Bot className="h-3 w-3 shrink-0 text-violet-400" />
+                          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                            Laudo IA
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          <Badge
+                            variant="secondary"
+                            className={cn(
+                              "border text-xs",
+                              approvalModal.laudoAnalitico.incongruencia_detectada
+                                ? "border-red-200 bg-red-100 text-red-700 dark:border-red-900/50 dark:bg-red-900/35 dark:text-red-300"
+                                : "border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-900/35 dark:text-emerald-300",
+                            )}
+                          >
+                            {approvalModal.laudoAnalitico.incongruencia_detectada
+                              ? "Incongruência detectada"
+                              : "Sem incongruências"}
+                          </Badge>
+                          <Badge
+                            variant="secondary"
+                            className={cn(
+                              "border text-xs",
+                              approvalModal.laudoAnalitico.evidencias_suficientes
+                                ? "border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-900/35 dark:text-emerald-300"
+                                : "border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/50 dark:bg-amber-900/35 dark:text-amber-300",
+                            )}
+                          >
+                            {approvalModal.laudoAnalitico.evidencias_suficientes
+                              ? "Evidências ✓"
+                              : "Evidências insuficientes"}
+                          </Badge>
+                          <Badge
+                            variant="secondary"
+                            className="border border-slate-200 bg-slate-100 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                          >
+                            {approvalModal.laudoAnalitico.indice_confianca_ia}/100
+                          </Badge>
+                          {approvalModal.laudoAnalitico.severidade_contran !== "N/A" && (
+                            <Badge
+                              variant="secondary"
+                              className="border border-orange-200 bg-orange-100 text-xs text-orange-700 dark:border-orange-900/50 dark:bg-orange-900/35 dark:text-orange-300"
+                            >
+                              CONTRAN: {approvalModal.laudoAnalitico.severidade_contran}
+                            </Badge>
+                          )}
+                          <Badge
+                            variant="secondary"
+                            className="border border-violet-200 bg-violet-100 font-mono text-xs text-violet-800 dark:border-violet-900/50 dark:bg-violet-900/35 dark:text-violet-200"
+                          >
+                            {approvalModal.laudoAnalitico.recomendacao_auditoria}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      {/* Accordion: análise completa */}
+                      <button
+                        type="button"
+                        onClick={() => setIsLaudoExpanded((v) => !v)}
+                        className="flex w-full items-center justify-between border-t border-border/40 px-3 py-2 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                      >
+                        <span className="text-xs text-muted-foreground">
+                          Ver análise completa
+                        </span>
+                        <ChevronDown
+                          className={cn(
+                            "h-3.5 w-3.5 text-muted-foreground transition-transform duration-200",
+                            isLaudoExpanded && "rotate-180",
+                          )}
+                        />
+                      </button>
+
+                      {isLaudoExpanded && (
+                        <div className="space-y-3 border-t border-border/40 px-3 py-3">
+                          {approvalModal.laudoAnalitico.analise_visual && (
+                            <div>
+                              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                Análise Visual
+                              </p>
+                              <p className="text-sm leading-relaxed text-foreground/80">
+                                {approvalModal.laudoAnalitico.analise_visual}
+                              </p>
+                            </div>
+                          )}
+                          {approvalModal.laudoAnalitico.analise_audio && (
+                            <div>
+                              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                Análise de Áudio
+                              </p>
+                              <p className="text-sm leading-relaxed text-foreground/80">
+                                {approvalModal.laudoAnalitico.analise_audio}
+                              </p>
+                            </div>
+                          )}
+                          {approvalModal.laudoAnalitico.detalhes_incongruencia && (
+                            <div>
+                              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                Detalhes da Incongruência
+                              </p>
+                              <p className="text-sm leading-relaxed text-foreground/80">
+                                {approvalModal.laudoAnalitico.detalhes_incongruencia}
+                              </p>
+                            </div>
+                          )}
+                          <div>
+                            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                              Peças Visivelmente Afetadas
+                            </p>
+                            {approvalModal.laudoAnalitico.pecas_visivelmente_afetadas.length === 0 ? (
+                              <p className="text-sm text-muted-foreground">
+                                Nenhuma peça identificada
+                              </p>
+                            ) : (
+                              <ul className="space-y-1">
+                                {approvalModal.laudoAnalitico.pecas_visivelmente_afetadas.map(
+                                  (peca, idx) => (
+                                    <li
+                                      key={idx}
+                                      className="flex items-center gap-2 text-sm text-foreground/80"
+                                    >
+                                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
+                                      {peca}
+                                    </li>
+                                  ),
+                                )}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 ) : approvalModal.alertas.length === 0 ? (
                   <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-900/50 dark:bg-emerald-950/25">
                     <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />

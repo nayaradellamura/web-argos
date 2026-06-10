@@ -208,6 +208,7 @@ export default function VistoriaPage() {
     audios: false,
     transcricoes: false,
     historicoVistorias: false,
+    laudo_ia: false,
   });
   const [chatMessages, setChatMessages] = useState<
     {
@@ -1272,17 +1273,155 @@ export default function VistoriaPage() {
 
               {!isVistoriaLoading && !isVistoriaError && vistoria && (
                 <>
-                  {/* ── Banner: Alerta IA ── */}
-                  {vistoria.alertas && (
-                    <div className="flex gap-3 rounded-r-xl border-l-4 border-yellow-500 bg-yellow-50 p-4 dark:bg-yellow-900/20">
-                      <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-yellow-600 dark:text-yellow-400" />
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-yellow-700 dark:text-yellow-400">
-                          Alerta da IA
-                        </p>
-                        <p className="mt-0.5 text-sm text-yellow-800 dark:text-yellow-200">
-                          {String(vistoria.alertas)}
-                        </p>
+                  {/* ── Laudo Analítico da IA ── */}
+                  {vistoria.laudo_analitico && (
+                    <div
+                      className={cn(
+                        "overflow-hidden rounded-r-xl border-l-4",
+                        vistoria.laudo_analitico.incongruencia_detectada
+                          ? "border-l-red-500"
+                          : "border-l-emerald-500",
+                      )}
+                    >
+                      <div className="rounded-r-xl border border-l-0 border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+                        {/* Linha de indicadores */}
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+                          <div className="flex items-center gap-1.5 mr-auto">
+                            <Bot className="h-3.5 w-3.5 shrink-0 text-violet-500" />
+                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                              Laudo IA
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            <Badge
+                              variant="secondary"
+                              className={cn(
+                                "border text-xs",
+                                vistoria.laudo_analitico.incongruencia_detectada
+                                  ? "border-red-200 bg-red-100 text-red-700 dark:border-red-900/50 dark:bg-red-900/35 dark:text-red-300"
+                                  : "border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-900/35 dark:text-emerald-300",
+                              )}
+                            >
+                              {vistoria.laudo_analitico.incongruencia_detectada
+                                ? "Incongruência detectada"
+                                : "Sem incongruências"}
+                            </Badge>
+                            <Badge
+                              variant="secondary"
+                              className={cn(
+                                "border text-xs",
+                                vistoria.laudo_analitico.evidencias_suficientes
+                                  ? "border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-900/35 dark:text-emerald-300"
+                                  : "border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/50 dark:bg-amber-900/35 dark:text-amber-300",
+                              )}
+                            >
+                              {vistoria.laudo_analitico.evidencias_suficientes
+                                ? "Evidências ✓"
+                                : "Evidências insuficientes"}
+                            </Badge>
+                            <Badge
+                              variant="secondary"
+                              className="border border-slate-200 bg-slate-100 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                            >
+                              {vistoria.laudo_analitico.indice_confianca_ia}/100
+                            </Badge>
+                            {vistoria.laudo_analitico.severidade_contran !== "N/A" && (
+                              <Badge
+                                variant="secondary"
+                                className="border border-orange-200 bg-orange-100 text-xs text-orange-700 dark:border-orange-900/50 dark:bg-orange-900/35 dark:text-orange-300"
+                              >
+                                CONTRAN: {vistoria.laudo_analitico.severidade_contran}
+                              </Badge>
+                            )}
+                            <Badge
+                              variant="secondary"
+                              className="border border-violet-200 bg-violet-100 font-mono text-xs text-violet-800 dark:border-violet-900/50 dark:bg-violet-900/35 dark:text-violet-200"
+                            >
+                              {vistoria.laudo_analitico.recomendacao_auditoria}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        {/* Accordion: detalhes completos */}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAccordionState((prev) => ({
+                              ...prev,
+                              laudo_ia: !prev.laudo_ia,
+                            }))
+                          }
+                          className="flex w-full items-center justify-between border-t border-border/40 px-4 py-2.5 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                        >
+                          <span className="text-xs text-muted-foreground">
+                            Ver análise completa
+                          </span>
+                          <ChevronDown
+                            className={cn(
+                              "h-4 w-4 text-muted-foreground transition-transform duration-200",
+                              accordionState.laudo_ia && "rotate-180",
+                            )}
+                          />
+                        </button>
+
+                        {accordionState.laudo_ia && (
+                          <div className="space-y-3 border-t border-border/40 px-4 py-3">
+                            {vistoria.laudo_analitico.analise_visual && (
+                              <div>
+                                <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                  Análise Visual
+                                </p>
+                                <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                                  {vistoria.laudo_analitico.analise_visual}
+                                </p>
+                              </div>
+                            )}
+                            {vistoria.laudo_analitico.analise_audio && (
+                              <div>
+                                <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                  Análise de Áudio
+                                </p>
+                                <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                                  {vistoria.laudo_analitico.analise_audio}
+                                </p>
+                              </div>
+                            )}
+                            {vistoria.laudo_analitico.detalhes_incongruencia && (
+                              <div>
+                                <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                  Detalhes da Incongruência
+                                </p>
+                                <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                                  {vistoria.laudo_analitico.detalhes_incongruencia}
+                                </p>
+                              </div>
+                            )}
+                            <div>
+                              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                Peças Visivelmente Afetadas
+                              </p>
+                              {vistoria.laudo_analitico.pecas_visivelmente_afetadas.length === 0 ? (
+                                <p className="text-sm text-muted-foreground">
+                                  Nenhuma peça identificada
+                                </p>
+                              ) : (
+                                <ul className="space-y-1">
+                                  {vistoria.laudo_analitico.pecas_visivelmente_afetadas.map(
+                                    (peca, idx) => (
+                                      <li
+                                        key={idx}
+                                        className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300"
+                                      >
+                                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400 dark:bg-slate-500" />
+                                        {peca}
+                                      </li>
+                                    ),
+                                  )}
+                                </ul>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

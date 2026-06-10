@@ -76,8 +76,21 @@ export interface Vistoria {
   motivoRejeicao?: string;
   ajustesNecessarios?: string;
   motivoCancelamento?: string;
+  laudo_analitico?: LaudoAnalitico;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
+}
+
+export interface LaudoAnalitico {
+  analise_audio: string;
+  analise_visual: string;
+  detalhes_incongruencia: string;
+  evidencias_suficientes: boolean;
+  incongruencia_detectada: boolean;
+  indice_confianca_ia: number;
+  pecas_visivelmente_afetadas: string[];
+  recomendacao_auditoria: string;
+  severidade_contran: string;
 }
 
 export interface AudioSubcollectionItem {
