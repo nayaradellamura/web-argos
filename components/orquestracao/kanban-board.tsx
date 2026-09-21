@@ -1,6 +1,10 @@
 "use client";
 import { apiFetch } from "@/lib/api-client";
 import type { LaudoAnalitico } from "@/lib/types/firestore";
+import { LaudoTecnicoCard } from "@/components/orquestracao/laudo-tecnico-card";
+import { LaudoAnaliseCompleta, type LaudoTecnicoAchados } from "@/components/orquestracao/laudo-analise-completa";
+import { db } from "@/lib/firebase";
+import { collection, onSnapshot } from "firebase/firestore";
 
 import {
   memo,
@@ -39,6 +43,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -569,6 +574,48 @@ const KanbanCardItem = memo(function KanbanCardItem({
   );
 });
 
+// Placeholder com a mesma silhueta do KanbanCardItem (cabeçalho + 2 linhas +
+// badge), pra não "pular" de tamanho quando os dados reais chegam.
+function KanbanCardSkeleton() {
+  return (
+    <Card className="w-full overflow-hidden border-border/70">
+      <CardHeader className="px-3 pb-2 pt-3">
+        <div className="flex w-full items-start justify-between gap-2">
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="h-3 w-1/2" />
+          </div>
+          <Skeleton className="h-7 w-7 shrink-0 rounded-md" />
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2.5 px-3 pb-3">
+        <Skeleton className="h-3 w-4/5" />
+        <Skeleton className="h-3 w-3/5" />
+        <Skeleton className="h-6 w-full rounded-md" />
+      </CardContent>
+    </Card>
+  );
+}
+
+function KanbanColumnSkeleton({ column, cardCount }: { column: KanbanColumnConfig; cardCount: number }) {
+  return (
+    <div className="rounded-lg border bg-card px-3 py-2">
+      <div className="mb-3 flex items-center justify-between gap-2 py-1">
+        <div className="flex items-center gap-2">
+          <span className={cn("h-2.5 w-2.5 rounded-full opacity-50", column.dotClassName)} />
+          <h3 className="text-sm font-semibold text-foreground">{column.title}</h3>
+        </div>
+        <Skeleton className="h-5 w-6 rounded-full" />
+      </div>
+      <div className="space-y-3">
+        {Array.from({ length: cardCount }, (_, i) => (
+          <KanbanCardSkeleton key={i} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const KanbanColumn = memo(function KanbanColumn({
   column,
   cards,
@@ -791,22 +838,49 @@ export function KanbanBoard() {
     alertas: AlertaIA[];
     isLoadingAlertas: boolean;
     laudoAnalitico: LaudoAnalitico | null;
-  }>({ open: false, card: null, alertas: [], isLoadingAlertas: false, laudoAnalitico: null });
+    laudoTecnicoAchados: LaudoTecnicoAchados | null;
+  }>({
+    open: false,
+    card: null,
+    alertas: [],
+    isLoadingAlertas: false,
+    laudoAnalitico: null,
+    laudoTecnicoAchados: null,
+  });
   const [isRejecting, setIsRejecting] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [ajustesNecessariosRejeicao, setAjustesNecessariosRejeicao] = useState("");
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [isRejectSubmitting, setIsRejectSubmitting] = useState(false);
-  const [isLaudoExpanded, setIsLaudoExpanded] = useState(false);
 
   const { data, isLoading, mutate, error } = useSWR<KanbanResponse>(
     "/api/sinistros?tipo=kanban",
     fetcher,
     {
-      refreshInterval: isDragging ? 0 : 3000,
+      // O listener do Firestore abaixo já revalida na hora que algo muda —
+      // esse intervalo é só uma rede de segurança (ex: listener caiu, ou uma
+      // Cloud Function escreveu num campo que não dispara o listener).
+      refreshInterval: isDragging ? 0 : 60000,
       revalidateOnFocus: true,
     },
   );
+
+  // Antes disso o board ficava dando poll em /api/sinistros a cada 3s, o
+  // tempo todo, mesmo sem nada mudar. Ouvir a coleção direto do Firestore
+  // client-side é bem mais barato (só lê o que mudou) e ainda fica em tempo
+  // real — só dispara `mutate()` quando um sinistro é criado/editado de fato.
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, "sinistro"),
+      () => {
+        mutate();
+      },
+      (err) => {
+        console.error("[kanban-board] listener de sinistro falhou:", err);
+      },
+    );
+    return () => unsubscribe();
+  }, [mutate]);
 
   const oficinasUrl = linkModal.open
     ? `/api/oficinas?page=1&limit=50${
@@ -1348,28 +1422,50 @@ export function KanbanBoard() {
       alertas: [],
       isLoadingAlertas: false,
       laudoAnalitico: null,
+      laudoTecnicoAchados: null,
     });
     setIsRejecting(false);
     setRejectReason("");
     setAjustesNecessariosRejeicao("");
-    setIsLaudoExpanded(false);
   }, []);
 
   const openApprovalModal = async (card: KanbanCard) => {
     setIsRejecting(false);
     setRejectReason("");
     setAjustesNecessariosRejeicao("");
-    setApprovalModal({ open: true, card, alertas: [], isLoadingAlertas: true, laudoAnalitico: null });
+    setApprovalModal({
+      open: true,
+      card,
+      alertas: [],
+      isLoadingAlertas: true,
+      laudoAnalitico: null,
+      laudoTecnicoAchados: null,
+    });
     try {
       const [alertasResult, sinistroResult] = await Promise.allSettled([
         fetchAlertasIa(card.id),
-        apiFetch(`/api/sinistros/${card.id}`).then((r) => r.json() as Promise<{ latestVistoria?: { laudo_analitico?: LaudoAnalitico } }>),
+        apiFetch(`/api/sinistros/${card.id}`).then(
+          (r) =>
+            r.json() as Promise<{
+              latestVistoria?: { laudo_analitico?: LaudoAnalitico | string };
+              laudoTecnico?: { achados?: LaudoTecnicoAchados };
+            }>,
+        ),
       ]);
 
       const alertas = alertasResult.status === "fulfilled" ? alertasResult.value : [];
-      const laudoAnalitico =
+      // laudo_analitico era um objeto estruturado antes da troca pro agente
+      // ADK — hoje vem como string de texto livre. Só usa como fallback
+      // legado quando ainda for o formato antigo.
+      const rawLaudoAnalitico =
         sinistroResult.status === "fulfilled"
-          ? (sinistroResult.value.latestVistoria?.laudo_analitico ?? null)
+          ? sinistroResult.value.latestVistoria?.laudo_analitico
+          : null;
+      const laudoAnalitico =
+        rawLaudoAnalitico && typeof rawLaudoAnalitico === "object" ? rawLaudoAnalitico : null;
+      const laudoTecnicoAchados =
+        sinistroResult.status === "fulfilled"
+          ? (sinistroResult.value.laudoTecnico?.achados ?? null)
           : null;
 
       setApprovalModal({
@@ -1378,6 +1474,7 @@ export function KanbanBoard() {
         alertas,
         isLoadingAlertas: false,
         laudoAnalitico,
+        laudoTecnicoAchados,
       });
     } catch (err) {
       setApprovalModal({
@@ -1386,6 +1483,7 @@ export function KanbanBoard() {
         alertas: [],
         isLoadingAlertas: false,
         laudoAnalitico: null,
+        laudoTecnicoAchados: null,
       });
       toast({
         title: "Erro ao carregar relatório IA",
@@ -1589,30 +1687,42 @@ export function KanbanBoard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">
-        {COLUMN_CONFIGS.map((column) => (
-          <KanbanColumn
-            key={column.id}
-            column={column}
-            cards={filteredColumns[column.id]}
-            isDragOver={dragOverColumn === column.id}
-            draggingCardId={draggingCardId}
-            dragSourceColumnId={dragPayload?.sourceColumnId ?? null}
-            onDragOver={setDragOverColumn}
-            onDragLeave={handleDragLeaveColumn}
-            onDrop={handleDropBetweenColumns}
-            onDragStartCard={handleDragStartCard}
-            onDragEndCard={handleDragEndCard}
-            onEditCard={openEditModal}
-            onDeleteCard={setDeletingCard}
-            onViewCard={openDetailsModal}
-            onQuickLink={openLinkModal}
-            onQuickAnalyze={handleQuickAnalyze}
-          />
-        ))}
-      </div>
+      {isLoading && !data ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">
+          {COLUMN_CONFIGS.map((column, i) => (
+            <KanbanColumnSkeleton
+              key={column.id}
+              column={column}
+              cardCount={i === 0 ? 3 : 2}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">
+          {COLUMN_CONFIGS.map((column) => (
+            <KanbanColumn
+              key={column.id}
+              column={column}
+              cards={filteredColumns[column.id]}
+              isDragOver={dragOverColumn === column.id}
+              draggingCardId={draggingCardId}
+              dragSourceColumnId={dragPayload?.sourceColumnId ?? null}
+              onDragOver={setDragOverColumn}
+              onDragLeave={handleDragLeaveColumn}
+              onDrop={handleDropBetweenColumns}
+              onDragStartCard={handleDragStartCard}
+              onDragEndCard={handleDragEndCard}
+              onEditCard={openEditModal}
+              onDeleteCard={setDeletingCard}
+              onViewCard={openDetailsModal}
+              onQuickLink={openLinkModal}
+              onQuickAnalyze={handleQuickAnalyze}
+            />
+          ))}
+        </div>
+      )}
 
-      {isLoading && (
+      {isLoading && data && (
         <p className="text-xs text-muted-foreground">
           Sincronizando quadro em tempo real...
         </p>
@@ -2203,6 +2313,8 @@ export function KanbanBoard() {
                     </span>
                   </div>
                 </div>
+
+                <LaudoTecnicoCard sinistroId={detailsModal.card?.id} />
 
                 <div className="mb-4 rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
                   <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-primary">
@@ -2805,149 +2917,21 @@ export function KanbanBoard() {
                   <p className="text-sm text-muted-foreground">
                     Carregando relatório...
                   </p>
-                ) : approvalModal.laudoAnalitico ? (
-                  <div
-                    className={cn(
-                      "overflow-hidden rounded-r-xl border-l-4",
-                      approvalModal.laudoAnalitico.incongruencia_detectada
-                        ? "border-l-red-500"
-                        : "border-l-emerald-500",
-                    )}
-                  >
+                ) : approvalModal.laudoAnalitico || approvalModal.laudoTecnicoAchados ? (
+                  <div className="overflow-hidden rounded-r-xl border-l-4 border-l-primary">
                     <div className="rounded-r-xl border border-l-0 border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
-                      {/* Indicadores sempre visíveis */}
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-3 py-2.5">
-                        <div className="mr-auto flex items-center gap-1.5">
-                          <Bot className="h-3 w-3 shrink-0 text-violet-400" />
-                          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                            Laudo IA
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          <Badge
-                            variant="secondary"
-                            className={cn(
-                              "border text-xs",
-                              approvalModal.laudoAnalitico.incongruencia_detectada
-                                ? "border-red-200 bg-red-100 text-red-700 dark:border-red-900/50 dark:bg-red-900/35 dark:text-red-300"
-                                : "border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-900/35 dark:text-emerald-300",
-                            )}
-                          >
-                            {approvalModal.laudoAnalitico.incongruencia_detectada
-                              ? "Incongruência detectada"
-                              : "Sem incongruências"}
-                          </Badge>
-                          <Badge
-                            variant="secondary"
-                            className={cn(
-                              "border text-xs",
-                              approvalModal.laudoAnalitico.evidencias_suficientes
-                                ? "border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-900/35 dark:text-emerald-300"
-                                : "border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/50 dark:bg-amber-900/35 dark:text-amber-300",
-                            )}
-                          >
-                            {approvalModal.laudoAnalitico.evidencias_suficientes
-                              ? "Evidências ✓"
-                              : "Evidências insuficientes"}
-                          </Badge>
-                          <Badge
-                            variant="secondary"
-                            className="border border-slate-200 bg-slate-100 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
-                          >
-                            {approvalModal.laudoAnalitico.indice_confianca_ia}/100
-                          </Badge>
-                          {approvalModal.laudoAnalitico.severidade_contran !== "N/A" && (
-                            <Badge
-                              variant="secondary"
-                              className="border border-orange-200 bg-orange-100 text-xs text-orange-700 dark:border-orange-900/50 dark:bg-orange-900/35 dark:text-orange-300"
-                            >
-                              CONTRAN: {approvalModal.laudoAnalitico.severidade_contran}
-                            </Badge>
-                          )}
-                          <Badge
-                            variant="secondary"
-                            className="border border-violet-200 bg-violet-100 font-mono text-xs text-violet-800 dark:border-violet-900/50 dark:bg-violet-900/35 dark:text-violet-200"
-                          >
-                            {approvalModal.laudoAnalitico.recomendacao_auditoria}
-                          </Badge>
-                        </div>
-                      </div>
-
-                      {/* Accordion: análise completa */}
-                      <button
-                        type="button"
-                        onClick={() => setIsLaudoExpanded((v) => !v)}
-                        className="flex w-full items-center justify-between border-t border-border/40 px-3 py-2 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                      >
-                        <span className="text-xs text-muted-foreground">
-                          Ver análise completa
+                      <div className="flex items-center gap-1.5 px-3 pt-2.5">
+                        <Bot className="h-3 w-3 shrink-0 text-violet-400" />
+                        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                          Laudo IA
                         </span>
-                        <ChevronDown
-                          className={cn(
-                            "h-3.5 w-3.5 text-muted-foreground transition-transform duration-200",
-                            isLaudoExpanded && "rotate-180",
-                          )}
+                      </div>
+                      <div className="px-3 pb-2.5 pt-1.5">
+                        <LaudoAnaliseCompleta
+                          achados={approvalModal.laudoTecnicoAchados ?? undefined}
+                          legacy={approvalModal.laudoAnalitico ?? undefined}
                         />
-                      </button>
-
-                      {isLaudoExpanded && (
-                        <div className="space-y-3 border-t border-border/40 px-3 py-3">
-                          {approvalModal.laudoAnalitico.analise_visual && (
-                            <div>
-                              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                                Análise Visual
-                              </p>
-                              <p className="text-sm leading-relaxed text-foreground/80">
-                                {approvalModal.laudoAnalitico.analise_visual}
-                              </p>
-                            </div>
-                          )}
-                          {approvalModal.laudoAnalitico.analise_audio && (
-                            <div>
-                              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                                Análise de Áudio
-                              </p>
-                              <p className="text-sm leading-relaxed text-foreground/80">
-                                {approvalModal.laudoAnalitico.analise_audio}
-                              </p>
-                            </div>
-                          )}
-                          {approvalModal.laudoAnalitico.detalhes_incongruencia && (
-                            <div>
-                              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                                Detalhes da Incongruência
-                              </p>
-                              <p className="text-sm leading-relaxed text-foreground/80">
-                                {approvalModal.laudoAnalitico.detalhes_incongruencia}
-                              </p>
-                            </div>
-                          )}
-                          <div>
-                            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                              Peças Visivelmente Afetadas
-                            </p>
-                            {approvalModal.laudoAnalitico.pecas_visivelmente_afetadas.length === 0 ? (
-                              <p className="text-sm text-muted-foreground">
-                                Nenhuma peça identificada
-                              </p>
-                            ) : (
-                              <ul className="space-y-1">
-                                {approvalModal.laudoAnalitico.pecas_visivelmente_afetadas.map(
-                                  (peca, idx) => (
-                                    <li
-                                      key={idx}
-                                      className="flex items-center gap-2 text-sm text-foreground/80"
-                                    >
-                                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
-                                      {peca}
-                                    </li>
-                                  ),
-                                )}
-                              </ul>
-                            )}
-                          </div>
-                        </div>
-                      )}
+                      </div>
                     </div>
                   </div>
                 ) : approvalModal.alertas.length === 0 ? (

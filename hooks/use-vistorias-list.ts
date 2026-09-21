@@ -1,7 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import useSWR from "swr";
+import { collection, onSnapshot } from "firebase/firestore";
 import { apiFetch } from "@/lib/api-client";
+import { db } from "@/lib/firebase";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -53,10 +56,28 @@ export function useVistoriasList(options?: { status?: string; tipoVistoria?: str
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
       keepPreviousData: true,
-      // Revalida a cada 30s para capturar mudanças de status no Firestore
-      refreshInterval: 30_000,
+      // O listener abaixo já revalida na hora que algo muda no Firestore —
+      // esse intervalo é só uma rede de segurança.
+      refreshInterval: 60_000,
     },
   );
+
+  // Antes ficava só no poll de 30s (janela de até 30s pra uma mudança de
+  // status aparecer). Ouvir a coleção direto do Firestore torna isso quase
+  // instantâneo, sem aumentar o número de leituras — só dispara quando um
+  // documento muda de verdade.
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, "vistorias"),
+      () => {
+        mutate();
+      },
+      (err) => {
+        console.error("[useVistoriasList] listener de vistorias falhou:", err);
+      },
+    );
+    return () => unsubscribe();
+  }, [mutate]);
 
   return {
     vistorias: data?.vistorias ?? [],
