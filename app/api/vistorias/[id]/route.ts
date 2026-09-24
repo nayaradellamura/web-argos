@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAdminDb, getAdminMessaging, getAdminStorage } from "@/lib/firebase-admin";
+import { getAdminDb, getAdminStorage } from "@/lib/firebase-admin";
 import { requireAuth, AuthError } from "@/lib/auth-server";
 import type { VistoriaStatus } from "@/lib/types/firestore";
 
@@ -193,13 +193,6 @@ const VALID_STATUSES: VistoriaStatus[] = [
   "CANCELADA",
 ];
 
-const FCM_NOTIFY_STATUSES = new Set<string>([
-  "EM_ANALISE_OPERACIONAL",
-  "FINALIZADA",
-  "REJEITADA",
-  "CANCELADA",
-]);
-
 function isValidStatus(value: string): value is VistoriaStatus {
   return (VALID_STATUSES as string[]).includes(value);
 }
@@ -307,17 +300,18 @@ export async function PATCH(
           updatedAt: new Date().toISOString(),
         }),
       ]);
-    } else if (newStatus === "REJEITADA" && sinistroId) {
-      // sinistro.vistoriaAtualStatus precisa espelhar REJEITADA, senão o app
-      // mobile nunca mostra pro mecânico que precisa refazer (é o campo que
-      // isRevisionCategory usa em inspection_case.dart e que a Cloud
-      // Function de notificação também observa).
+    } else if ((newStatus === "REJEITADA" || newStatus === "CANCELADA") && sinistroId) {
+      // sinistro.vistoriaAtualStatus precisa espelhar REJEITADA/CANCELADA,
+      // senão o app mobile nunca sabe que precisa mostrar isso pro mecânico
+      // (é o campo que isRevisionCategory usa em inspection_case.dart e que
+      // a Cloud Function de notificação observa pra disparar o push real —
+      // sem esse espelhamento, nem o card muda nem a notificação sai).
       const sinistroRef = db.collection("sinistro").doc(sinistroId);
       await Promise.all([
         vistoriaRef.update(updatePayload),
         sinistroRef.update({
           vistoriaAtualId: id,
-          vistoriaAtualStatus: "REJEITADA",
+          vistoriaAtualStatus: newStatus,
           vistoriaAtualTipo: vistoriaData.tipoVistoria ?? "ORIGINAL",
           ultimaVistoriaAt: updatePayload.updatedAt,
           updatedAt: updatePayload.updatedAt,
@@ -327,21 +321,12 @@ export async function PATCH(
       await vistoriaRef.update(updatePayload);
     }
 
-    // Notificação FCM (não-fatal: erro não interrompe a resposta)
-    if (FCM_NOTIFY_STATUSES.has(newStatus)) {
-      try {
-        await getAdminMessaging().send({
-          topic: `vistoria_${id}`,
-          notification: {
-            title: `Vistoria ${id}`,
-            body: `Status atualizado para ${newStatus}`,
-          },
-          data: { vistoriaId: id, status: newStatus },
-        });
-      } catch (fcmError) {
-        console.error("FCM dispatch falhou (não-fatal):", fcmError);
-      }
-    }
+    // A notificação real acontece via Cloud Function (notifySinistroChanges,
+    // no repo mobile), disparada pela escrita em sinistro.vistoriaAtualStatus
+    // acima. Um envio por tópico FCM (`vistoria_${id}`) morava aqui antes,
+    // mas nenhum dispositivo do app mobile jamais se inscreve nesse tópico
+    // (subscribeToTopic não existe no código) — era um no-op silencioso que
+    // nunca notificou ninguém. Removido.
 
     const updated = await vistoriaRef.get();
     return NextResponse.json({ id, ...updated.data() });
