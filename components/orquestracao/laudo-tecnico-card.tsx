@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { doc, onSnapshot, type Timestamp } from "firebase/firestore";
-import { FileCheck2, FileWarning, Loader2, ThumbsDown, ThumbsUp } from "lucide-react";
+import { FileCheck2, FileWarning } from "lucide-react";
 
 import { db } from "@/lib/firebase";
 
@@ -20,12 +20,8 @@ const PdfViewer = dynamic(
     ),
   },
 );
-import { apiFetch } from "@/lib/api-client";
-import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -139,12 +135,7 @@ export function LaudoTecnicoCard({
       )}
 
       {laudo?.status === "pronto" && laudo.url && (
-        <LaudoViewerDialog
-          open={viewerOpen}
-          onOpenChange={setViewerOpen}
-          sinistroId={sinistroId}
-          url={laudo.url}
-        />
+        <LaudoViewerDialog open={viewerOpen} onOpenChange={setViewerOpen} url={laudo.url} />
       )}
     </>
   );
@@ -162,94 +153,27 @@ export function LaudoTecnicoCard({
   );
 }
 
+// Só visualização — aprovar/reprovar a vistoria vive num único lugar (o
+// modal de aprovação do kanban), pra não ter duas ações fazendo a mesma
+// coisa com nomes diferentes. Ver conversa que motivou isso: o dialog aqui
+// tinha Aprovar/Reprovar próprios, redundantes com "Finalizar Vistoria" e
+// "Rejeitar Vistoria" do kanban — confuso, removido de propósito.
 function LaudoViewerDialog({
   open,
   onOpenChange,
-  sinistroId,
   url,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  sinistroId: string;
   url: string;
 }) {
-  const [isApproving, setIsApproving] = useState(false);
-  const [isRejecting, setIsRejecting] = useState(false);
-  const [showRejectForm, setShowRejectForm] = useState(false);
-  const [motivoRejeicao, setMotivoRejeicao] = useState("");
-  const [ajustesNecessarios, setAjustesNecessarios] = useState("");
-
-  const resetAndClose = () => {
-    setShowRejectForm(false);
-    setMotivoRejeicao("");
-    setAjustesNecessarios("");
-    onOpenChange(false);
-  };
-
-  const handleApprove = async () => {
-    try {
-      setIsApproving(true);
-      const res = await apiFetch(`/api/sinistros/${sinistroId}/finalizar`, {
-        method: "PATCH",
-      });
-      const body = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(body.error ?? "Falha ao aprovar vistoria.");
-
-      toast({ title: "Vistoria aprovada", description: "Sinistro finalizado." });
-      resetAndClose();
-    } catch (err) {
-      toast({
-        title: "Erro ao aprovar",
-        description: err instanceof Error ? err.message : "Erro inesperado.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsApproving(false);
-    }
-  };
-
-  const handleReject = async () => {
-    if (!motivoRejeicao.trim() || !ajustesNecessarios.trim()) {
-      toast({
-        title: "Preencha os campos",
-        description: "Motivo e ajustes necessários são obrigatórios para reprovar.",
-        variant: "destructive",
-      });
-      return;
-    }
-    try {
-      setIsRejecting(true);
-      const res = await apiFetch(`/api/sinistros/${sinistroId}/rejeitar`, {
-        method: "PATCH",
-        body: JSON.stringify({ motivoRejeicao, ajustesNecessarios }),
-      });
-      const body = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(body.error ?? "Falha ao reprovar vistoria.");
-
-      toast({
-        title: "Vistoria reprovada",
-        description: "A oficina precisará refazer a inspeção.",
-      });
-      resetAndClose();
-    } catch (err) {
-      toast({
-        title: "Erro ao reprovar",
-        description: err instanceof Error ? err.message : "Erro inesperado.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsRejecting(false);
-    }
-  };
-
   return (
-    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(next) : resetAndClose())}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-3xl">
         <DialogHeader className="shrink-0">
           <DialogTitle>Laudo Técnico</DialogTitle>
           <DialogDescription>
             Gerado automaticamente pela IA a partir das evidências coletadas em campo.
-            Revise antes de aprovar ou reprovar a vistoria.
           </DialogDescription>
         </DialogHeader>
 
@@ -258,32 +182,7 @@ function LaudoViewerDialog({
           className="min-h-0 w-full min-w-0 flex-1"
         />
 
-        {showRejectForm ? (
-          <div className="shrink-0 space-y-3 rounded-lg border border-border/60 bg-muted/30 p-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="motivoRejeicao">Motivo da reprovação</Label>
-              <Textarea
-                id="motivoRejeicao"
-                value={motivoRejeicao}
-                onChange={(e) => setMotivoRejeicao(e.target.value)}
-                placeholder="Ex: evidências fotográficas não correspondem ao veículo."
-                rows={2}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="ajustesNecessarios">Ajustes necessários</Label>
-              <Textarea
-                id="ajustesNecessarios"
-                value={ajustesNecessarios}
-                onChange={(e) => setAjustesNecessarios(e.target.value)}
-                placeholder="Ex: solicitar novas fotos do veículo sinistrado."
-                rows={2}
-              />
-            </div>
-          </div>
-        ) : null}
-
-        <DialogFooter className="shrink-0 items-center sm:justify-between">
+        <DialogFooter className="shrink-0">
           <a
             href={`/api/laudo-proxy?url=${encodeURIComponent(url)}&download=1`}
             download="laudo-tecnico.pdf"
@@ -291,46 +190,6 @@ function LaudoViewerDialog({
           >
             Baixar PDF
           </a>
-          <div className="flex flex-wrap gap-2">
-            {showRejectForm ? (
-              <>
-                <Button
-                  variant="ghost"
-                  onClick={() => setShowRejectForm(false)}
-                  disabled={isRejecting}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={handleReject}
-                  disabled={isRejecting}
-                >
-                  {isRejecting && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Confirmar reprovação
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowRejectForm(true)}
-                  disabled={isApproving}
-                >
-                  <ThumbsDown className="h-4 w-4" />
-                  Reprovar
-                </Button>
-                <Button onClick={handleApprove} disabled={isApproving}>
-                  {isApproving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <ThumbsUp className="h-4 w-4" />
-                  )}
-                  Aprovar
-                </Button>
-              </>
-            )}
-          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

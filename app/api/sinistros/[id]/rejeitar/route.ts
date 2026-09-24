@@ -81,14 +81,27 @@ export async function PATCH(
     }
 
     const now = new Date().toISOString();
+    const latestData = latestDoc.data();
 
-    // Apenas a vistoria é atualizada — sinistro permanece EM_ANDAMENTO
-    await latestDoc.ref.update({
-      status: "REJEITADA",
-      motivoRejeicao,
-      ajustesNecessarios,
-      updatedAt: now,
-    });
+    // sinistro.status permanece EM_ANDAMENTO (a oficina ainda vai refazer a
+    // inspeção) — mas vistoriaAtualStatus precisa virar REJEITADA, senão o
+    // app mobile nunca mostra pro mecânico que precisa refazer (é o campo
+    // que isRevisionCategory usa em inspection_case.dart).
+    await Promise.all([
+      latestDoc.ref.update({
+        status: "REJEITADA",
+        motivoRejeicao,
+        ajustesNecessarios,
+        updatedAt: now,
+      }),
+      db.collection("sinistro").doc(id).update({
+        vistoriaAtualId: String(latestData.idvistoria ?? latestDoc.id),
+        vistoriaAtualStatus: "REJEITADA",
+        vistoriaAtualTipo: latestData.tipoVistoria ?? "ORIGINAL",
+        ultimaVistoriaAt: now,
+        updatedAt: now,
+      }),
+    ]);
 
     return NextResponse.json({
       id,

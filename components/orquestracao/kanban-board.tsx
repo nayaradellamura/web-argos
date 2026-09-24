@@ -2,6 +2,7 @@
 import { apiFetch } from "@/lib/api-client";
 import type { LaudoAnalitico } from "@/lib/types/firestore";
 import { LaudoTecnicoCard } from "@/components/orquestracao/laudo-tecnico-card";
+import { OrcamentoAprovadoCard } from "@/components/orquestracao/orcamento-aprovado-card";
 import { LaudoAnaliseCompleta, type LaudoTecnicoAchados } from "@/components/orquestracao/laudo-analise-completa";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
@@ -839,6 +840,7 @@ export function KanbanBoard() {
     isLoadingAlertas: boolean;
     laudoAnalitico: LaudoAnalitico | null;
     laudoTecnicoAchados: LaudoTecnicoAchados | null;
+    laudoTecnicoStatus: string | null;
   }>({
     open: false,
     card: null,
@@ -846,12 +848,21 @@ export function KanbanBoard() {
     isLoadingAlertas: false,
     laudoAnalitico: null,
     laudoTecnicoAchados: null,
+    laudoTecnicoStatus: null,
   });
   const [isRejecting, setIsRejecting] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [ajustesNecessariosRejeicao, setAjustesNecessariosRejeicao] = useState("");
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [isRejectSubmitting, setIsRejectSubmitting] = useState(false);
+
+  // O analista só pode aprovar/reprovar depois de ter uma análise pra se
+  // basear — o laudo técnico em PDF pronto, ou (pra vistorias antigas, de
+  // antes do pipeline novo) o laudo_analitico legado. Enquanto isso não
+  // existir (ainda gerando, erro, ou nunca foi solicitado), os botões
+  // ficam bloqueados — ver LaudoTecnicoCard/LaudoAnaliseCompleta.
+  const podeDecidirSobreVistoria =
+    approvalModal.laudoTecnicoStatus === "pronto" || approvalModal.laudoAnalitico !== null;
 
   const { data, isLoading, mutate, error } = useSWR<KanbanResponse>(
     "/api/sinistros?tipo=kanban",
@@ -1423,6 +1434,7 @@ export function KanbanBoard() {
       isLoadingAlertas: false,
       laudoAnalitico: null,
       laudoTecnicoAchados: null,
+      laudoTecnicoStatus: null,
     });
     setIsRejecting(false);
     setRejectReason("");
@@ -1440,6 +1452,7 @@ export function KanbanBoard() {
       isLoadingAlertas: true,
       laudoAnalitico: null,
       laudoTecnicoAchados: null,
+      laudoTecnicoStatus: null,
     });
     try {
       const [alertasResult, sinistroResult] = await Promise.allSettled([
@@ -1448,7 +1461,7 @@ export function KanbanBoard() {
           (r) =>
             r.json() as Promise<{
               latestVistoria?: { laudo_analitico?: LaudoAnalitico | string };
-              laudoTecnico?: { achados?: LaudoTecnicoAchados };
+              laudoTecnico?: { status?: string; achados?: LaudoTecnicoAchados };
             }>,
         ),
       ]);
@@ -1467,6 +1480,10 @@ export function KanbanBoard() {
         sinistroResult.status === "fulfilled"
           ? (sinistroResult.value.laudoTecnico?.achados ?? null)
           : null;
+      const laudoTecnicoStatus =
+        sinistroResult.status === "fulfilled"
+          ? (sinistroResult.value.laudoTecnico?.status ?? null)
+          : null;
 
       setApprovalModal({
         open: true,
@@ -1475,6 +1492,7 @@ export function KanbanBoard() {
         isLoadingAlertas: false,
         laudoAnalitico,
         laudoTecnicoAchados,
+        laudoTecnicoStatus,
       });
     } catch (err) {
       setApprovalModal({
@@ -1484,6 +1502,7 @@ export function KanbanBoard() {
         isLoadingAlertas: false,
         laudoAnalitico: null,
         laudoTecnicoAchados: null,
+        laudoTecnicoStatus: null,
       });
       toast({
         title: "Erro ao carregar relatório IA",
@@ -2315,6 +2334,7 @@ export function KanbanBoard() {
                 </div>
 
                 <LaudoTecnicoCard sinistroId={detailsModal.card?.id} />
+                <OrcamentoAprovadoCard sinistroId={detailsModal.card?.id} />
 
                 <div className="mb-4 rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
                   <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-primary">
@@ -3024,6 +3044,16 @@ export function KanbanBoard() {
                     Ver Vistoria
                   </Button>
                 </div>
+
+                {!approvalModal.isLoadingAlertas && !podeDecidirSobreVistoria && (
+                  <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/25 dark:text-amber-300">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      Aprovar/reprovar fica bloqueado até o laudo técnico da IA ficar pronto —
+                      revise a análise antes de decidir.
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Bloco de rejeição — visível apenas quando isRejecting */}
@@ -3118,7 +3148,7 @@ export function KanbanBoard() {
                   size="sm"
                   className="h-9 px-4"
                   onClick={() => setIsRejecting(true)}
-                  disabled={isFinalizing}
+                  disabled={isFinalizing || !podeDecidirSobreVistoria}
                 >
                   Rejeitar Vistoria
                 </Button>
@@ -3127,7 +3157,7 @@ export function KanbanBoard() {
                   size="sm"
                   className="h-9 px-4"
                   onClick={handleConfirmFinalizar}
-                  disabled={isFinalizing}
+                  disabled={isFinalizing || !podeDecidirSobreVistoria}
                 >
                   {isFinalizing ? "Finalizando..." : "Finalizar Vistoria"}
                 </Button>

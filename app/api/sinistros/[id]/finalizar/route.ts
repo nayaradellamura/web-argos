@@ -55,10 +55,22 @@ export async function PATCH(
     }
 
     const now = new Date().toISOString();
+    const latestData = latestDoc.data();
 
     await Promise.all([
       latestDoc.ref.update({ status: "FINALIZADA", updatedAt: now }),
-      db.collection("sinistro").doc(id).update({ status: "FINALIZADO", updatedAt: now }),
+      // vistoriaAtualStatus também precisa refletir a decisão — é o campo
+      // que o app mobile usa pra categorizar a vistoria (isCompletedCategory
+      // em inspection_case.dart). Sem isso, aprovar pelo web nunca chega a
+      // aparecer certo pro mecânico.
+      db.collection("sinistro").doc(id).update({
+        status: "FINALIZADO",
+        vistoriaAtualId: String(latestData.idvistoria ?? latestDoc.id),
+        vistoriaAtualStatus: "FINALIZADA",
+        vistoriaAtualTipo: latestData.tipoVistoria ?? "ORIGINAL",
+        ultimaVistoriaAt: now,
+        updatedAt: now,
+      }),
     ]);
 
     return NextResponse.json({
