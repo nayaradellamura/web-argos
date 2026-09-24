@@ -38,6 +38,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LaudoTecnicoCard } from "@/components/orquestracao/laudo-tecnico-card";
+import { OrcamentoAprovadoCard } from "@/components/orquestracao/orcamento-aprovado-card";
 
 import {
   Dialog,
@@ -1296,6 +1297,12 @@ export default function VistoriaPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Só aparece depois que o sinistro é aprovado — o próprio componente
+                      retorna null enquanto não existir sinistro.orcamentoAprovado. */}
+                  <OrcamentoAprovadoCard
+                    sinistroId={vistoria.sinistroId || selectedInspecao?.sinistroId}
+                  />
 
                   {/* ── Banner: Motivo de Rejeição ── */}
                   {vistoria.status === "REJEITADA" &&
