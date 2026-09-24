@@ -16,5 +16,11 @@ node_modules
 .next/
 .DS_Store
 
+# Artefatos de build do Firebase Hosting/emuladores — gerado localmente,
+# não é código-fonte (chegou a ser commitado sem querer numa tentativa de
+# deploy que falhou; ver histórico do git se precisar entender por quê)
+.firebase/
+firebase-debug.log
+
 # Chaves de segurança do Firebase
 firebase-credentials.json
