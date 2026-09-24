@@ -141,6 +141,22 @@ function classifyKanbanColumn(
   return "emVistoria";
 }
 
+// Mantém o card na área "Retificação" do kanban enquanto a retificação
+// estiver em andamento (não só quando a vistoria está REJEITADA) — senão o
+// card "some" da área de retificação assim que o mecânico clica em "Iniciar
+// Retificação" (a vistoria nova entra como EM_ANDAMENTO), voltando cedo
+// demais para a lista normal. Só sai de lá quando reentra em análise.
+function computeIsRejected(
+  latestVistoriaStatus: string | null,
+  latestTipoVistoria: string | null,
+): boolean {
+  if (latestVistoriaStatus === "REJEITADA") return true;
+  return (
+    latestTipoVistoria === "RETIFICACAO" &&
+    latestVistoriaStatus !== "EM_ANALISE_OPERACIONAL"
+  );
+}
+
 function mapKanbanCard(
   doc: QueryDocumentSnapshot<DocumentData>,
   latestVistoriaStatus: string | null,
@@ -276,7 +292,7 @@ export async function GET(request: Request) {
         }
 
         const column = classifyKanbanColumn(targetDoc.data(), latestStatus);
-        const isRejected = latestStatus === "REJEITADA";
+        const isRejected = computeIsRejected(latestStatus, latestTipoVistoria);
         columns[column].push(
           mapKanbanCard(
             targetDoc,
@@ -329,7 +345,7 @@ export async function GET(request: Request) {
         const vStatus = latestStatus.get(doc.id) ?? null;
         const vTipo = latestTipoVistoria.get(doc.id) ?? null;
         const col = classifyKanbanColumn(doc.data(), vStatus);
-        const isRej = vStatus === "REJEITADA";
+        const isRej = computeIsRejected(vStatus, vTipo);
         const hasHistorico = everRejected.get(doc.id) ?? false;
         columns[col].push(
           mapKanbanCard(doc, vStatus, isRej, hasHistorico, col, vTipo),

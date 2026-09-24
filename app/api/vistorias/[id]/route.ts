@@ -258,6 +258,22 @@ export async function PATCH(
           updatedAt: new Date().toISOString(),
         }),
       ]);
+    } else if (newStatus === "REJEITADA" && sinistroId) {
+      // sinistro.vistoriaAtualStatus precisa espelhar REJEITADA, senão o app
+      // mobile nunca mostra pro mecânico que precisa refazer (é o campo que
+      // isRevisionCategory usa em inspection_case.dart e que a Cloud
+      // Function de notificação também observa).
+      const sinistroRef = db.collection("sinistro").doc(sinistroId);
+      await Promise.all([
+        vistoriaRef.update(updatePayload),
+        sinistroRef.update({
+          vistoriaAtualId: id,
+          vistoriaAtualStatus: "REJEITADA",
+          vistoriaAtualTipo: vistoriaData.tipoVistoria ?? "ORIGINAL",
+          ultimaVistoriaAt: updatePayload.updatedAt,
+          updatedAt: updatePayload.updatedAt,
+        }),
+      ]);
     } else {
       await vistoriaRef.update(updatePayload);
     }

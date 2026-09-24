@@ -490,7 +490,7 @@ const KanbanCardItem = memo(function KanbanCardItem({
           </span>
         </div>
 
-        {card.isRejected && (
+        {card.latestVistoriaStatus === "REJEITADA" && (
           <Badge
             variant="secondary"
             className="border border-red-200 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
