@@ -29,6 +29,7 @@ import {
   User,
   ChevronDown,
   Check,
+  FileCheck2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,7 +38,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LaudoTecnicoCard } from "@/components/orquestracao/laudo-tecnico-card";
+import { LaudoTecnicoCard, LaudoViewerDialog } from "@/components/orquestracao/laudo-tecnico-card";
 import { OrcamentoAprovadoCard } from "@/components/orquestracao/orcamento-aprovado-card";
 
 import {
@@ -248,6 +249,7 @@ export default function VistoriaPage() {
   }>({ isLoading: false, items: [] });
   const [expandedHistoricoId, setExpandedHistoricoId] = useState<string | null>(null);
   const [expandedHistoricoData, setExpandedHistoricoData] = useState<VistoriaDetalhe | null>(null);
+  const [historicoPdfViewerUrl, setHistoricoPdfViewerUrl] = useState<string | null>(null);
   const [isLoadingHistoricoDetail, setIsLoadingHistoricoDetail] = useState(false);
 
   const vistoriaId =
@@ -1905,6 +1907,22 @@ export default function VistoriaPage() {
                                           </p>
                                         ) : expandedHistoricoData?.id === item.id ? (
                                           <>
+                                            {/* PDF do laudo desta vistoria especifica — mesmo visualizador inline do laudo da vistoria atual */}
+                                            {expandedHistoricoData.pdfLaudoUrl && (
+                                              <div className="flex justify-end">
+                                                <Button
+                                                  size="sm"
+                                                  className="h-auto gap-2 px-3 py-1.5 text-xs"
+                                                  onClick={() =>
+                                                    setHistoricoPdfViewerUrl(expandedHistoricoData.pdfLaudoUrl)
+                                                  }
+                                                >
+                                                  <FileCheck2 className="h-3.5 w-3.5" />
+                                                  Ver laudo técnico
+                                                </Button>
+                                              </div>
+                                            )}
+
                                             {/* Laudo */}
                                             {expandedHistoricoData.laudo && (
                                               <div className="rounded-lg border border-border/50 bg-slate-50 p-3 dark:bg-slate-800/40">
@@ -2221,6 +2239,18 @@ export default function VistoriaPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Visualizador de PDF do laudo — mesmo componente usado pro laudo da
+          vistoria atual, reaproveitado aqui pros itens do histórico. */}
+      {historicoPdfViewerUrl && (
+        <LaudoViewerDialog
+          open={!!historicoPdfViewerUrl}
+          onOpenChange={(open) => {
+            if (!open) setHistoricoPdfViewerUrl(null);
+          }}
+          url={historicoPdfViewerUrl}
+        />
+      )}
     </AppLayout>
   );
 }

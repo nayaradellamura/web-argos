@@ -158,7 +158,7 @@ export function LaudoTecnicoCard({
 // coisa com nomes diferentes. Ver conversa que motivou isso: o dialog aqui
 // tinha Aprovar/Reprovar próprios, redundantes com "Finalizar Vistoria" e
 // "Rejeitar Vistoria" do kanban — confuso, removido de propósito.
-function LaudoViewerDialog({
+export function LaudoViewerDialog({
   open,
   onOpenChange,
   url,

@@ -1,9 +1,42 @@
 import { NextResponse } from "next/server";
-import { getAdminDb, getAdminMessaging } from "@/lib/firebase-admin";
+import { getAdminDb, getAdminMessaging, getAdminStorage } from "@/lib/firebase-admin";
 import { requireAuth, AuthError } from "@/lib/auth-server";
 import type { VistoriaStatus } from "@/lib/types/firestore";
 
 export const runtime = "nodejs";
+
+const STORAGE_BUCKET = "fho-argos.firebasestorage.app";
+
+// O laudo-service (Cloud Run externo) so grava a URL do PDF em
+// sinistro.laudoTecnico.url, um campo unico que e sobrescrito toda vez que
+// uma vistoria nova gera laudo — entao o pdfLaudoUrl da propria vistoria fica
+// sempre vazio no pipeline novo. O arquivo em si sobrevive no Storage num
+// caminho previsivel por vistoriaId, so nao fica mais referenciado em lugar
+// nenhum. Reconstroi a URL de download a partir do token ja salvo no arquivo
+// (o mesmo formato que o laudo-proxy espera), sem precisar mudar nada no
+// laudo-service.
+async function findLaudoPdfUrl(vistoriaId: string): Promise<string | null> {
+  try {
+    const bucket = getAdminStorage().bucket(STORAGE_BUCKET);
+    const path = `vistorias/${vistoriaId}/vistorias/Laudo Técnico ${vistoriaId}.pdf`;
+    const file = bucket.file(path);
+    const [exists] = await file.exists();
+    if (!exists) return null;
+
+    const [metadata] = await file.getMetadata();
+    const tokens = metadata.metadata?.firebaseStorageDownloadTokens as
+      | string
+      | undefined;
+    const token = tokens?.split(",")[0];
+    if (!token) return null;
+
+    const encodedPath = encodeURIComponent(path);
+    return `https://firebasestorage.googleapis.com/v0/b/${STORAGE_BUCKET}/o/${encodedPath}?alt=media&token=${token}`;
+  } catch (err) {
+    console.error("Falha ao buscar PDF do laudo no Storage:", err);
+    return null;
+  }
+}
 
 // ── Serialização recursiva de Timestamps do Firestore ─────────────────────────
 // Converte qualquer valor que possua .toDate() em ISO string para não quebrar
@@ -90,6 +123,22 @@ export async function GET(
     const clienteSnap = sData.clienteSnapshot as Record<string, unknown> | undefined;
     const credSnap    = sData.credenciadoSnapshot as Record<string, unknown> | undefined;
 
+    // pdfLaudoUrl proprio da vistoria e do pipeline legado — no pipeline novo
+    // (laudo-service) so existe em sinistro.laudoTecnico.url, que e
+    // sobrescrito a cada vistoria nova. Se essa vistoria for a atual do
+    // sinistro e o laudoTecnico bater com ela, usa direto; senao, tenta achar
+    // o PDF dessa vistoria especifica no Storage.
+    const laudoTecnico = sData.laudoTecnico as
+      | { vistoriaId?: string; url?: string }
+      | undefined;
+    let pdfLaudoUrl = vData.pdfLaudoUrl ? String(vData.pdfLaudoUrl) : null;
+    if (!pdfLaudoUrl && laudoTecnico?.vistoriaId === id && laudoTecnico.url) {
+      pdfLaudoUrl = String(laudoTecnico.url);
+    }
+    if (!pdfLaudoUrl) {
+      pdfLaudoUrl = await findLaudoPdfUrl(id);
+    }
+
     const payload = {
       id: vistoriaSnap.id,
       sinistroId: sinistroId ?? null,
@@ -101,7 +150,7 @@ export async function GET(
       ajustesNecessarios:  vData.ajustesNecessarios ? String(vData.ajustesNecessarios) : null,
       motivoCancelamento:  vData.motivoCancelamento ? String(vData.motivoCancelamento) : null,
       laudo:               vData.laudo ? String(vData.laudo) : null,
-      pdfLaudoUrl:         vData.pdfLaudoUrl ? String(vData.pdfLaudoUrl) : null,
+      pdfLaudoUrl,
       alertas:             vData.alertas ?? null,
       laudo_analitico:     serializeFirestore(vData.laudo_analitico) ?? null,
       createdAt:           serializeFirestore(vData.createdAt) as string | null,
